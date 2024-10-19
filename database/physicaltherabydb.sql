@@ -30,6 +30,21 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA public;
 COMMENT ON EXTENSION pgcrypto IS 'cryptographic functions';
 
 
+--
+-- Name: doctors_doctor_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.doctors_doctor_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.doctors_doctor_id_seq OWNER TO postgres;
+
 SET default_tablespace = '';
 
 SET default_table_access_method = heap;
@@ -48,7 +63,8 @@ CREATE TABLE public.doctors (
     age integer NOT NULL,
     hospital text,
     national_id integer NOT NULL,
-    verification_image_url text
+    verification_image_url text,
+    doctor_id integer DEFAULT nextval('public.doctors_doctor_id_seq'::regclass) NOT NULL
 );
 
 
@@ -100,10 +116,25 @@ ALTER TABLE public.patients OWNER TO postgres;
 
 
 --
+-- Name: doctors_doctor_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
+
+SELECT pg_catalog.setval('public.doctors_doctor_id_seq', 1, false);
+
+
+--
 -- Name: patients_patient_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
 SELECT pg_catalog.setval('public.patients_patient_id_seq', 1, false);
+
+
+--
+-- Name: doctors doctors_doctor_id_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.doctors
+    ADD CONSTRAINT doctors_doctor_id_pkey PRIMARY KEY (doctor_id);
 
 
 --
