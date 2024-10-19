@@ -2,14 +2,14 @@ const http = require('http');
 const app = require('./app');
 const PORT = process.env.PORT || 3000;
 const server = http.createServer(app);
-const { pool } = require('./models/configrations');
+const { pool , database} = require('./models/configrations');
 const { initializeSocket } = require('./middleware/socket.controller');
 
 
 async function startServer() {
     //connecting to SQL database 
   await pool.connect().then(
-    () => { console.log('Connected to PostgreSQL database'); }
+    () => { console.log(`successfully Connected to ${database} database !`); }
     ).catch((err) => {
     console.error('Error connecting to PostgreSQL:', err.stack);
     process.exit(1);
