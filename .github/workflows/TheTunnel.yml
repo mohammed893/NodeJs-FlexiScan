@@ -3,7 +3,7 @@ name: The Whales Tunnel
 on:
   push:
     branches:
-      - main
+      - master
 
 jobs:
   deploy:
