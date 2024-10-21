@@ -22,5 +22,5 @@ async function startServer() {
   });
 }
 
-//starting the server - temp
 startServer();
+
