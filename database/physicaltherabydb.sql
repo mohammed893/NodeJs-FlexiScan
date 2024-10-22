@@ -1,12 +1,8 @@
+--
 -- PostgreSQL database dump
+--
 
--- Create a database if it doesn't exist
-CREATE DATABASE physicaltheraby;
-
--- Connect to the created database
-\c physicaltheraby;
-
--- Dumped from database version 16.4
+-- Dumped from database version 16.3
 -- Dumped by pg_dump version 16.0
 
 SET statement_timeout = 0;
@@ -20,15 +16,83 @@ SET xmloption = content;
 SET client_min_messages = warning;
 SET row_security = off;
 
+--
+-- Name: physicaltheraby; Type: DATABASE; Schema: -; Owner: postgres
+--
+
+CREATE DATABASE physicaltheraby WITH TEMPLATE = template0 ENCODING = 'UTF8' LOCALE_PROVIDER = libc LOCALE = 'English_United States.1252';
+
+
+ALTER DATABASE physicaltheraby OWNER TO postgres;
+
+\connect physicaltheraby
+
+SET statement_timeout = 0;
+SET lock_timeout = 0;
+SET idle_in_transaction_session_timeout = 0;
+SET client_encoding = 'UTF8';
+SET standard_conforming_strings = on;
+SELECT pg_catalog.set_config('search_path', '', false);
+SET check_function_bodies = false;
+SET xmloption = content;
+SET client_min_messages = warning;
+SET row_security = off;
+
+--
 -- Name: pgcrypto; Type: EXTENSION; Schema: -; Owner: -
+--
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA public;
 
+
+--
 -- Name: EXTENSION pgcrypto; Type: COMMENT; Schema: -; Owner: 
+--
 
 COMMENT ON EXTENSION pgcrypto IS 'cryptographic functions';
 
+
+--
+-- Name: billings_billing_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.billings_billing_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.billings_billing_id_seq OWNER TO postgres;
+
+SET default_tablespace = '';
+
+SET default_table_access_method = heap;
+
+--
+-- Name: billings; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.billings (
+    billing_id integer DEFAULT nextval('public.billings_billing_id_seq'::regclass) NOT NULL,
+    appointment_id integer NOT NULL,
+    patient_id integer NOT NULL,
+    doctor_id integer NOT NULL,
+    total_amount integer NOT NULL,
+    billing_date date NOT NULL,
+    payment_status text NOT NULL,
+    payment_method text NOT NULL,
+    notes text
+);
+
+
+ALTER TABLE public.billings OWNER TO postgres;
+
+--
 -- Name: doctors_doctor_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
 
 CREATE SEQUENCE public.doctors_doctor_id_seq
     AS integer
@@ -38,13 +102,12 @@ CREATE SEQUENCE public.doctors_doctor_id_seq
     NO MAXVALUE
     CACHE 1;
 
+
 ALTER SEQUENCE public.doctors_doctor_id_seq OWNER TO postgres;
 
-SET default_tablespace = '';
-
-SET default_table_access_method = heap;
-
+--
 -- Name: doctors; Type: TABLE; Schema: public; Owner: postgres
+--
 
 CREATE TABLE public.doctors (
     full_name text NOT NULL,
@@ -60,9 +123,12 @@ CREATE TABLE public.doctors (
     doctor_id integer DEFAULT nextval('public.doctors_doctor_id_seq'::regclass) NOT NULL
 );
 
+
 ALTER TABLE public.doctors OWNER TO postgres;
 
+--
 -- Name: patients_patient_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
 
 CREATE SEQUENCE public.patients_patient_id_seq
     AS integer
@@ -72,9 +138,12 @@ CREATE SEQUENCE public.patients_patient_id_seq
     NO MAXVALUE
     CACHE 1;
 
+
 ALTER SEQUENCE public.patients_patient_id_seq OWNER TO postgres;
 
+--
 -- Name: patients; Type: TABLE; Schema: public; Owner: postgres
+--
 
 CREATE TABLE public.patients (
     patient_id integer DEFAULT nextval('public.patients_patient_id_seq'::regclass) NOT NULL,
@@ -87,33 +156,58 @@ CREATE TABLE public.patients (
     follow_up boolean NOT NULL
 );
 
+
 ALTER TABLE public.patients OWNER TO postgres;
 
--- Data for Name: doctors; Type: TABLE DATA; Schema: public; Owner: postgres
-
--- Data for Name: patients; Type: TABLE DATA; Schema: public; Owner: postgres
-
--- Name: doctors_doctor_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
-
-SELECT pg_catalog.setval('public.doctors_doctor_id_seq', 1, false);
-
--- Name: patients_patient_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
-
-SELECT pg_catalog.setval('public.patients_patient_id_seq', 1, false);
-
+--
 -- Name: doctors doctors_doctor_id_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.doctors
     ADD CONSTRAINT doctors_doctor_id_pkey PRIMARY KEY (doctor_id);
 
+
+--
 -- Name: doctors doctors_national_id_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.doctors
     ADD CONSTRAINT doctors_national_id_key UNIQUE (national_id);
 
+
+--
 -- Name: patients patients_patien_id_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.patients
     ADD CONSTRAINT patients_patien_id_pkey PRIMARY KEY (patient_id);
 
+
+--
+-- Name: billings pk_billing; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.billings
+    ADD CONSTRAINT pk_billing PRIMARY KEY (billing_id);
+
+
+--
+-- Name: billings fk_doctor; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.billings
+    ADD CONSTRAINT fk_doctor FOREIGN KEY (doctor_id) REFERENCES public.doctors(doctor_id) ON DELETE CASCADE;
+
+
+--
+-- Name: billings fk_patient; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.billings
+    ADD CONSTRAINT fk_patient FOREIGN KEY (patient_id) REFERENCES public.patients(patient_id) ON DELETE CASCADE;
+
+
+--
 -- PostgreSQL database dump complete
+--
+
