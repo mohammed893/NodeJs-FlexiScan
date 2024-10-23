@@ -53,6 +53,32 @@ COMMENT ON EXTENSION pgcrypto IS 'cryptographic functions';
 
 
 --
+-- Name: payment_method_enum; Type: TYPE; Schema: public; Owner: postgres
+--
+
+CREATE TYPE public.payment_method_enum AS ENUM (
+    'credit card',
+    'cash',
+    'fawry'
+);
+
+
+ALTER TYPE public.payment_method_enum OWNER TO postgres;
+
+--
+-- Name: payment_status_enum; Type: TYPE; Schema: public; Owner: postgres
+--
+
+CREATE TYPE public.payment_status_enum AS ENUM (
+    'paid',
+    'pending',
+    'failed'
+);
+
+
+ALTER TYPE public.payment_status_enum OWNER TO postgres;
+
+--
 -- Name: billings_billing_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
 --
 
@@ -80,11 +106,11 @@ CREATE TABLE public.billings (
     appointment_id integer NOT NULL,
     patient_id integer NOT NULL,
     doctor_id integer NOT NULL,
-    total_amount integer NOT NULL,
-    billing_date date NOT NULL,
-    payment_status text NOT NULL,
-    payment_method text NOT NULL,
-    notes text
+    total_amount numeric(10,2) NOT NULL,
+    billing_date timestamp with time zone NOT NULL,
+    payment_status public.payment_status_enum NOT NULL,
+    payment_method public.payment_method_enum NOT NULL,
+    notes character varying(255)
 );
 
 
