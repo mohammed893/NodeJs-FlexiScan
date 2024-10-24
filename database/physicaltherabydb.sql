@@ -39,6 +39,19 @@ SET client_min_messages = warning;
 SET row_security = off;
 
 --
+-- Name: pgcrypto; Type: EXTENSION; Schema: -; Owner: -
+--
+
+CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA public;
+
+
+--
+-- Name: EXTENSION pgcrypto; Type: COMMENT; Schema: -; Owner: 
+--
+
+COMMENT ON EXTENSION pgcrypto IS 'cryptographic functions';
+
+--
 -- Name: public; Type: SCHEMA; Schema: -; Owner: pg_database_owner
 --
 
@@ -458,59 +471,6 @@ CREATE TABLE public.time_slots (
 
 
 ALTER TABLE public.time_slots OWNER TO postgres;
-
---
--- Data for Name: billings; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.billings (billing_id, patient_id, doctor_id, total_amount, billing_date, payment_status, payment_method, notes, appointment_date) FROM stdin;
-\.
-
-
---
--- Data for Name: booking_history; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.booking_history (history_id, action_type, old_date, old_start_time, old_end_time, new_date, new_start_time, new_end_time, cancellation_reason, action_date, patient_id, doctor_id, appointment_date) FROM stdin;
-\.
-
-
---
--- Data for Name: consultation_records; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.consultation_records (consultation, doctor_id, patient_id, consultation_note, prescription, follow_up_date, created_at, updated_at, appointment_date) FROM stdin;
-\.
-
-
---
--- Data for Name: doctors; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.doctors (full_name, email, password, date_of_birth, gender, phone_number, age, hospital, national_id, verification_image_url, doctor_id, timezone, consultation_type, specialization, experience, slot_duration, working_hours, available_days) FROM stdin;
-Dr. John Doe	doctor.email@example.com	securepassword	1979-04-23	male	555-1234-567	45	General Hospital	1234904	http://example.com/verification_image.jpg	1	Africa/Cairo	video call	Cardiology	20	00:30:00	{"end": "17:00", "start": "09:00"}	["Monday", "Wednesday", "Friday"]
-\.
-
-
---
--- Data for Name: patients; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.patients (patient_id, full_name, email, password, date_of_birth, gender, phone_number, follow_up, insurance_id, primary_doctor_id) FROM stdin;
-1	John Doe	patient.email@example.com	securepassword	1990-05-15	male	555-9876-543	t	INS123456	1
-\.
-
-
---
--- Data for Name: time_slots; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.time_slots (time_slot_id, doctor_id, slot_start_time, slot_end_time, slot_duration, working_days, is_available) FROM stdin;
-5	1	14:00:00	14:30:00	00:30:00	{Wednesday,Sunday,Monday}	t
-6	1	14:30:00	15:00:00	00:30:00	{Wednesday,Sunday,Monday}	t
-7	1	15:00:00	15:30:00	00:30:00	{Wednesday,Sunday,Monday}	t
-8	1	15:30:00	16:00:00	00:30:00	{Wednesday,Sunday,Monday}	t
-\.
 
 
 --
