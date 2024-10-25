@@ -1,0 +1,4 @@
+name: FlexiScan Node-Js CI
+on:  
+  push:
+    branches: [master]
