@@ -1,22 +1,56 @@
-name: FlexiScan - NodeJs - CI
-on:
-  push: 
-    branches: [master]
-  pull_request: 
-    branches: [master]
+name: CI with PostgreSQL DB Creation from Dump
+
+on: [push, pull_request]
+
 jobs:
-  build:
-    env:
-      CI: true
-    strategy:
-      matrix:
-        node-version: [20.x,16.x]
+  test:
     runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:13
+        env:
+          POSTGRES_USER: postgres         # Default superuser
+          POSTGRES_PASSWORD: testpass      # Superuser password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
-        with:
-          node-version: ${{matrix.node-version}}
-      - run: npm install
-      - run: npm test 
-          
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Install PostgreSQL Client
+      run: sudo apt-get install -y postgresql-client  # Ensure psql is available
+
+    - name: Wait for PostgreSQL to be ready
+      run: |
+        until pg_isready -h localhost -U postgres; do
+          echo "Waiting for PostgreSQL to be ready..."
+          sleep 1
+        done
+
+    - name: Create and Restore Database from Dump
+      run: |
+        # Create the database from the dump file
+        PGPASSWORD=testpass psql -h localhost -U postgres -c "DROP DATABASE IF EXISTS physicaltheraby;"   # Clean existing DB
+        PGPASSWORD=testpass psql -h localhost -U postgres -c "CREATE DATABASE physicaltheraby;"
+        PGPASSWORD=testpass psql -h localhost -U postgres -d physicaltheraby -f ./database/physicaltherabydb.sql  # Restore dump to newly created DB
+      env:
+        PGPASSWORD: testpass
+
+    - name: Set up Node.js (or your preferred language runtime)
+      uses: actions/setup-node@v3
+      with:
+        node-version: '20.x'
+
+    - name: Run Tests
+      env:
+        DATABASE_URL: postgres://postgres:testpass@localhost:5432/physicaltheraby  # Update DB URL with postgres user
+      run: |
+        npm install
+        npm run test
