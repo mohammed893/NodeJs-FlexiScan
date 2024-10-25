@@ -1,22 +1,48 @@
-name: FlexiScan - NodeJs - CI
-on:
-  push: 
-    branches: [master]
-  pull_request: 
-    branches: [master]
+name: CI with PostgreSQL and DB Dump
+
+on: [push, pull_request]
+
 jobs:
-  build:
-    env:
-      CI: true
-    strategy:
-      matrix:
-        node-version: [20.x,16.x]
+  test:
     runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:13
+        env:
+          POSTGRES_USER: testuser
+          POSTGRES_PASSWORD: testpass
+          POSTGRES_DB: testdb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U testuser"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
-        with:
-          node-version: ${{matrix.node-version}}
-      - run: npm install
-      - run: npm test 
-          
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Install Dependencies
+      run: sudo apt-get install -y libpq-dev
+
+    - name: Set up Node.js (or your preferred language runtime)
+      uses: actions/setup-node@v3
+      with:
+        node-version: '20.x'
+
+    - name: Restore PostgreSQL DB from Dump
+      run: |
+        # Restore the dump into the PostgreSQL service
+        PGPASSWORD=testpass psql -h localhost -U testuser -d testdb -f ./database/physicaltherabydb.sql
+      env:
+        PGPASSWORD: testpass
+
+    - name: Run Tests
+      env:
+        DATABASE_URL: postgres://testuser:testpass@localhost:5432/testdb
+      run: |
+        npm install
+        npm run test
