@@ -33,7 +33,7 @@ jobs:
       - name: Build and push Docker image
         env:
           IMAGE_TAG: latest
-          AWS_REGION: eu-north-1
+          AWS_REGION: us-east-1
           AWS_ACCOUNT_ID: ${{ secrets.AWS_MY_ID }}
         run: |
           docker build -t thewhale:$IMAGE_TAG .
