@@ -20,7 +20,7 @@ SET row_security = off;
 -- Name: physicaltherapydb; Type: DATABASE; Schema: -; Owner: postgres
 --
 
-CREATE DATABASE physicaltherapydb WITH TEMPLATE = template0 ENCODING = 'UTF8' LOCALE_PROVIDER = libc LOCALE = 'English_United States.1252';
+CREATE DATABASE physicaltherapydb WITH TEMPLATE = template0 ENCODING = 'UTF8' LOCALE = 'en_US.UTF-8';
 
 
 ALTER DATABASE physicaltherapydb OWNER TO postgres;
