@@ -1,96 +1,96 @@
-# name: The Whales Tunnel
+name: The Whales Tunnel
 
-# on:
-#   push:
-#     branches:
-#       - master
-# jobs:
-#   deploy:
-#     environment: env 
-#     runs-on: ubuntu-latest
+on:
+  push:
+    branches:
+      - master
+jobs:
+  deploy:
+    environment: env 
+    runs-on: ubuntu-latest
 
-#     steps:
-#       - name: Checkout code
-#         uses: actions/checkout@v2
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
 
-#       - name: Set up Docker Buildx
-#         uses: docker/setup-buildx-action@v2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
 
-#       - name: Configure AWS credentials
-#         uses: aws-actions/configure-aws-credentials@v2
-#         with:
-#           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-#           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-#           aws-region: eu-north-1
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-north-1
 
-#       - name: Login to AWS ECR
-#         env:
-#           AWS_REGION: eu-north-1
-#           AWS_ACCOUNT_ID: ${{ secrets.AWS_MY_ID }}
-#         run: |
-#           aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
+      - name: Login to AWS ECR
+        env:
+          AWS_REGION: eu-north-1
+          AWS_ACCOUNT_ID: ${{ secrets.AWS_MY_ID }}
+        run: |
+          aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
 
-#       - name: Build and push Docker image
-#         env:
-#           IMAGE_TAG: latest
-#           AWS_REGION: eu-north-1
-#           AWS_ACCOUNT_ID: ${{ secrets.AWS_MY_ID }}
-#         run: |
-#           docker build -t thewhale:$IMAGE_TAG .
-#           docker tag thewhale:$IMAGE_TAG $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/thewhale:$IMAGE_TAG
-#           docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/thewhale:$IMAGE_TAG
+      - name: Build and push Docker image
+        env:
+          IMAGE_TAG: latest
+          AWS_REGION: eu-north-1
+          AWS_ACCOUNT_ID: ${{ secrets.AWS_MY_ID }}
+        run: |
+          docker build -t thewhale:$IMAGE_TAG .
+          docker tag thewhale:$IMAGE_TAG $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/thewhale:$IMAGE_TAG
+          docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/thewhale:$IMAGE_TAG
       
-#       - name: Wait For the test    # Testing :)
-#         uses: actions/setup-node@v4
-#         with:
-#           node-version: ${{ matrix.node-version }}
-#           cache: 'npm'
-#       - run: npm ci
-#       - run: npm run build --if-present
-#       - run: npm test
+      - name: Wait For the test    # Testing :)
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run build --if-present
+      - run: npm test
 
-#       - name: SSH to EC2 and deploy
-#         uses: appleboy/ssh-action@v0.1.2
-#         with:
-#           host: ${{ secrets.EC2_HOST }}
-#           username: ${{ secrets.EC2_USER }}
-#           key: ${{ secrets.EC2_SSH_KEY }}
-#           script: |
+      - name: SSH to EC2 and deploy
+        uses: appleboy/ssh-action@v0.1.2
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
             
-#             echo "Setting AWS credentials..."
-#             export AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
-#             export AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
-#             export AWS_REGION=eu-north-1
+            echo "Setting AWS credentials..."
+            export AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
+            export AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
+            export AWS_REGION=eu-north-1
             
-#             echo "Logging into AWS ECR..."
-#             aws ecr get-login-password --region eu-north-1 | docker login --username AWS --password-stdin ${{ secrets.AWS_MY_ID }}.dkr.ecr.eu-north-1.amazonaws.com
+            echo "Logging into AWS ECR..."
+            aws ecr get-login-password --region eu-north-1 | docker login --username AWS --password-stdin ${{ secrets.AWS_MY_ID }}.dkr.ecr.eu-north-1.amazonaws.com
             
-#             if [ $? -ne 0 ]; then
-#              echo "AWS ECR login failed"
-#              exit 1
-#             fi
+            if [ $? -ne 0 ]; then
+             echo "AWS ECR login failed"
+             exit 1
+            fi
             
-#             echo "Pulling Docker image..."
-#             docker pull ${{ secrets.AWS_MY_ID }}.dkr.ecr.eu-north-1.amazonaws.com/thewhale:latest
+            echo "Pulling Docker image..."
+            docker pull ${{ secrets.AWS_MY_ID }}.dkr.ecr.eu-north-1.amazonaws.com/thewhale:latest
             
-#             if [ $? -ne 0 ]; then
-#               echo "Failed to pull Docker image"
-#               exit 1
-#             fi
+            if [ $? -ne 0 ]; then
+              echo "Failed to pull Docker image"
+              exit 1
+            fi
             
-#             echo "Stopping and removing existing container if it exists..."
-#             if [ "$(docker ps -q -f name=thewhale)" ]; then
-#               docker stop thewhale
-#             fi
+            echo "Stopping and removing existing container if it exists..."
+            if [ "$(docker ps -q -f name=thewhale)" ]; then
+              docker stop thewhale
+            fi
             
-#             if [ "$(docker ps -a -q -f name=thewhale)" ]; then
-#               docker rm thewhale
-#             fi
+            if [ "$(docker ps -a -q -f name=thewhale)" ]; then
+              docker rm thewhale
+            fi
             
-#             echo "Running new Docker container..."
-#             docker run -d --name thewhale -p 3000:3000 -v physicaltheraby:/var/lib/postgresql/data ${{ secrets.AWS_MY_ID }}.dkr.ecr.eu-north-1.amazonaws.com/thewhale:latest
+            echo "Running new Docker container..."
+            docker run -d --name thewhale -p 3000:3000 -v physicaltheraby:/var/lib/postgresql/data ${{ secrets.AWS_MY_ID }}.dkr.ecr.eu-north-1.amazonaws.com/thewhale:latest
             
-#             if [ $? -ne 0 ]; then
-#               echo "Failed to run Docker container"
-#               exit 1
-#             fi
+            if [ $? -ne 0 ]; then
+              echo "Failed to run Docker container"
+              exit 1
+            fi
