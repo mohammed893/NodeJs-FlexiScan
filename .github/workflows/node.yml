@@ -39,7 +39,7 @@ jobs:
         # Create the database from the dump file
         PGPASSWORD=testpass psql -h localhost -U postgres -c "DROP DATABASE IF EXISTS physicaltheraby;"   # Clean existing DB
         PGPASSWORD=testpass psql -h localhost -U postgres -c "CREATE DATABASE physicaltheraby;"
-        PGPASSWORD=testpass psql -h localhost -U postgres -d physicaltheraby -f ./database/physicaltheraby.sql  # Restore dump to newly created DB
+        PGPASSWORD=testpass psql -h localhost -U postgres -d physicaltheraby -f ./database/physicaltherabydb.sql  # Restore dump to newly created DB
       env:
         PGPASSWORD: testpass
 
