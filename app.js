@@ -12,6 +12,5 @@ app.use(morgan(
  ));
 app.use(bodyParser.json());
 app.use('/doctors', doctors);
-app.use ('/auth' , auth)
 
 module.exports = app;
