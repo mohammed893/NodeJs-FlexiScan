@@ -3,6 +3,6 @@ const router = express.Router();
 const doctorsController = require('./Doctors.controller');
 const {AuthToken} = require('../Authentication/Auth.controller');
 
-router.get('/' , AuthToken , doctorsController.getDoctor);
+router.get('/'  , doctorsController.getDoctor);
 
 module.exports = router;
