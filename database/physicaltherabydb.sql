@@ -39,19 +39,6 @@ SET client_min_messages = warning;
 SET row_security = off;
 
 --
--- Name: pgcrypto; Type: EXTENSION; Schema: -; Owner: -
---
-
-CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA public;
-
-
---
--- Name: EXTENSION pgcrypto; Type: COMMENT; Schema: -; Owner: 
---
-
-COMMENT ON EXTENSION pgcrypto IS 'cryptographic functions';
-
---
 -- Name: public; Type: SCHEMA; Schema: -; Owner: pg_database_owner
 --
 
@@ -158,47 +145,58 @@ CREATE FUNCTION public.book_appointment(p_patient_id integer, p_doctor_id intege
 DECLARE
     slot_exists BOOLEAN;
     appointment_exists BOOLEAN;
+    overlapping_appointment BOOLEAN;
 BEGIN
     -- Check if the selected slot exists for the doctor in the time_slots table
     SELECT EXISTS (
         SELECT 1
         FROM time_slots
-        WHERE time_slot_id = p_slot_id AND time_slots.doctor_id = p_doctor_id  -- Using parameter
-        for update
+        WHERE time_slot_id = p_slot_id AND time_slots.doctor_id = p_doctor_id
     ) INTO slot_exists;
 
     -- If the slot exists, proceed
     IF slot_exists THEN
-
         -- Check if there is an existing appointment for the selected slot, date, and status
         SELECT EXISTS (
             SELECT 1
             FROM appointments
             WHERE slot_id = p_slot_id
             AND appointment_date = p_appointment_date
-            AND appointments.status = 'scheduled'
+            AND status = 'scheduled'
         ) INTO appointment_exists;
 
-        -- If no appointment exists and the appointment date is in the future, proceed with the booking
-        IF NOT appointment_exists AND p_appointment_date > NOW()::DATE THEN
+        -- Check if the patient has any overlapping appointments on the same day
+        SELECT EXISTS (
+            SELECT 1
+            FROM appointments a
+            JOIN time_slots ts ON a.slot_id = ts.time_slot_id
+            WHERE a.patient_id = p_patient_id
+            AND a.appointment_date = p_appointment_date
+            AND a.status = 'scheduled'
+            AND (
+                ts.slot_start_time < (SELECT slot_end_time FROM time_slots WHERE time_slot_id = p_slot_id)
+                AND ts.slot_end_time > (SELECT slot_start_time FROM time_slots WHERE time_slot_id = p_slot_id)
+            )
+        ) INTO overlapping_appointment;
+
+        -- Proceed only if there is no existing appointment for the slot and no time overlap
+        IF NOT appointment_exists AND NOT overlapping_appointment AND p_appointment_date > NOW()::DATE THEN
             -- Insert a new appointment into the appointments table
             INSERT INTO appointments (
-                doctor_id, patient_id, slot_id, appointment_date, 
-                status, created_at, updated_at
+                doctor_id, patient_id, slot_id, appointment_date, status, created_at, updated_at
             )
             VALUES (
-                p_doctor_id,  -- Using parameter
-                p_patient_id,  -- Using parameter
-                p_slot_id,     -- Using parameter
-                p_appointment_date,  -- Using parameter
+                p_doctor_id,
+                p_patient_id,
+                p_slot_id,
+                p_appointment_date,
                 'scheduled',
                 NOW(),
                 NOW()
             );
-
             RETURN TRUE; -- Booking successful
         ELSE
-            RETURN FALSE; -- Slot is already reserved or date is invalid
+            RETURN FALSE; -- Slot is already reserved or overlaps
         END IF;
     ELSE
         RETURN FALSE; -- Slot is unavailable or not valid
@@ -226,11 +224,11 @@ CREATE TABLE public.appointments (
     slot_id integer NOT NULL,
     status public.appointment_status NOT NULL,
     cancellation_reason text,
-    cancellation_timestamp timestamp without time zone,
+    cancellation_timestamp timestamp with time zone,
     consultation_notes text,
     appointment_date date NOT NULL,
-    created_at timestamp without time zone DEFAULT now(),
-    updated_at timestamp without time zone DEFAULT now(),
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now(),
     CONSTRAINT cancellation_data_check CHECK ((((status = 'canceled'::public.appointment_status) AND (cancellation_reason IS NOT NULL) AND (cancellation_timestamp IS NOT NULL)) OR ((status <> 'canceled'::public.appointment_status) AND (cancellation_reason IS NULL) AND (cancellation_timestamp IS NULL))))
 )
 PARTITION BY RANGE (appointment_date);
@@ -253,6 +251,29 @@ CREATE SEQUENCE public.appointments_appointment_id_seq
 
 ALTER SEQUENCE public.appointments_appointment_id_seq OWNER TO postgres;
 
+SET default_table_access_method = heap;
+
+--
+-- Name: appointments_nov_2024; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.appointments_nov_2024 (
+    doctor_id integer NOT NULL,
+    patient_id integer NOT NULL,
+    slot_id integer NOT NULL,
+    status public.appointment_status NOT NULL,
+    cancellation_reason text,
+    cancellation_timestamp timestamp with time zone,
+    consultation_notes text,
+    appointment_date date NOT NULL,
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now(),
+    CONSTRAINT cancellation_data_check CHECK ((((status = 'canceled'::public.appointment_status) AND (cancellation_reason IS NOT NULL) AND (cancellation_timestamp IS NOT NULL)) OR ((status <> 'canceled'::public.appointment_status) AND (cancellation_reason IS NULL) AND (cancellation_timestamp IS NULL))))
+);
+
+
+ALTER TABLE public.appointments_nov_2024 OWNER TO postgres;
+
 --
 -- Name: billings_billing_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
 --
@@ -267,8 +288,6 @@ CREATE SEQUENCE public.billings_billing_id_seq
 
 
 ALTER SEQUENCE public.billings_billing_id_seq OWNER TO postgres;
-
-SET default_table_access_method = heap;
 
 --
 -- Name: billings; Type: TABLE; Schema: public; Owner: postgres
@@ -472,54 +491,27 @@ CREATE TABLE public.time_slots (
 
 ALTER TABLE public.time_slots OWNER TO postgres;
 
-
 --
--- Name: appointments_appointment_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.appointments_appointment_id_seq', 4, true);
-
-
---
--- Name: billings_billing_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+-- Name: appointments_nov_2024; Type: TABLE ATTACH; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.billings_billing_id_seq', 1, false);
+ALTER TABLE ONLY public.appointments ATTACH PARTITION public.appointments_nov_2024 FOR VALUES FROM ('2024-11-01') TO ('2024-12-01');
 
 
 --
--- Name: bookinghistory_history_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+-- Name: appointments unique_appointment; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.bookinghistory_history_id_seq', 1, false);
-
-
---
--- Name: consultationrecords_conultation_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.consultationrecords_conultation_id_seq', 1, false);
+ALTER TABLE ONLY public.appointments
+    ADD CONSTRAINT unique_appointment UNIQUE (doctor_id, patient_id, slot_id, appointment_date);
 
 
 --
--- Name: doctors_doctor_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+-- Name: appointments_nov_2024 appointments_nov_2024_doctor_id_patient_id_slot_id_appointm_key; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.doctors_doctor_id_seq', 2, true);
-
-
---
--- Name: patients_patient_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.patients_patient_id_seq', 14, true);
-
-
---
--- Name: time_slots_time_slot_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.time_slots_time_slot_id_seq', 8, true);
+ALTER TABLE ONLY public.appointments_nov_2024
+    ADD CONSTRAINT appointments_nov_2024_doctor_id_patient_id_slot_id_appointm_key UNIQUE (doctor_id, patient_id, slot_id, appointment_date);
 
 
 --
@@ -528,6 +520,14 @@ SELECT pg_catalog.setval('public.time_slots_time_slot_id_seq', 8, true);
 
 ALTER TABLE ONLY public.appointments
     ADD CONSTRAINT appointments_pkey PRIMARY KEY (doctor_id, patient_id, appointment_date);
+
+
+--
+-- Name: appointments_nov_2024 appointments_nov_2024_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.appointments_nov_2024
+    ADD CONSTRAINT appointments_nov_2024_pkey PRIMARY KEY (doctor_id, patient_id, appointment_date);
 
 
 --
@@ -595,18 +595,17 @@ ALTER TABLE ONLY public.time_slots
 
 
 --
--- Name: appointments unique_appointment; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.appointments
-    ADD CONSTRAINT unique_appointment UNIQUE (doctor_id, patient_id, slot_id, appointment_date);
-
-
---
 -- Name: idx_appointments_appointment_date; Type: INDEX; Schema: public; Owner: postgres
 --
 
 CREATE INDEX idx_appointments_appointment_date ON ONLY public.appointments USING btree (doctor_id, appointment_date);
+
+
+--
+-- Name: appointments_nov_2024_doctor_id_appointment_date_idx; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX appointments_nov_2024_doctor_id_appointment_date_idx ON public.appointments_nov_2024 USING btree (doctor_id, appointment_date);
 
 
 --
@@ -617,6 +616,13 @@ CREATE INDEX idx_appointments_patient_date ON ONLY public.appointments USING btr
 
 
 --
+-- Name: appointments_nov_2024_patient_id_appointment_date_idx; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX appointments_nov_2024_patient_id_appointment_date_idx ON public.appointments_nov_2024 USING btree (patient_id, appointment_date);
+
+
+--
 -- Name: idx_appointments_status; Type: INDEX; Schema: public; Owner: postgres
 --
 
@@ -624,10 +630,52 @@ CREATE INDEX idx_appointments_status ON ONLY public.appointments USING btree (st
 
 
 --
+-- Name: appointments_nov_2024_status_idx; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX appointments_nov_2024_status_idx ON public.appointments_nov_2024 USING btree (status);
+
+
+--
 -- Name: idx_time_slots; Type: INDEX; Schema: public; Owner: postgres
 --
 
 CREATE INDEX idx_time_slots ON public.time_slots USING btree (doctor_id, slot_start_time);
+
+
+--
+-- Name: appointments_nov_2024_doctor_id_appointment_date_idx; Type: INDEX ATTACH; Schema: public; Owner: postgres
+--
+
+ALTER INDEX public.idx_appointments_appointment_date ATTACH PARTITION public.appointments_nov_2024_doctor_id_appointment_date_idx;
+
+
+--
+-- Name: appointments_nov_2024_doctor_id_patient_id_slot_id_appointm_key; Type: INDEX ATTACH; Schema: public; Owner: postgres
+--
+
+ALTER INDEX public.unique_appointment ATTACH PARTITION public.appointments_nov_2024_doctor_id_patient_id_slot_id_appointm_key;
+
+
+--
+-- Name: appointments_nov_2024_patient_id_appointment_date_idx; Type: INDEX ATTACH; Schema: public; Owner: postgres
+--
+
+ALTER INDEX public.idx_appointments_patient_date ATTACH PARTITION public.appointments_nov_2024_patient_id_appointment_date_idx;
+
+
+--
+-- Name: appointments_nov_2024_pkey; Type: INDEX ATTACH; Schema: public; Owner: postgres
+--
+
+ALTER INDEX public.appointments_pkey ATTACH PARTITION public.appointments_nov_2024_pkey;
+
+
+--
+-- Name: appointments_nov_2024_status_idx; Type: INDEX ATTACH; Schema: public; Owner: postgres
+--
+
+ALTER INDEX public.idx_appointments_status ATTACH PARTITION public.appointments_nov_2024_status_idx;
 
 
 --
