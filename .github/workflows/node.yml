@@ -23,9 +23,14 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v3
+      with:
+        fetch-depth: 0  # Ensure the full repo is fetched
+
+    - name: List all files and directories
+      run: ls -laR  # List all files and directories, including hidden ones, recursively
 
     - name: Install PostgreSQL Client
-      run: sudo apt-get install -y postgresql-client  # Ensure psql is available
+      run: sudo apt-get install -y postgresql-client
 
     - name: Wait for PostgreSQL to be ready
       run: |
@@ -39,7 +44,7 @@ jobs:
         # Create the database from the dump file
         PGPASSWORD=testpass psql -h localhost -U postgres -c "DROP DATABASE IF EXISTS physicaltheraby;"   # Clean existing DB
         PGPASSWORD=testpass psql -h localhost -U postgres -c "CREATE DATABASE physicaltheraby;"
-        PGPASSWORD=testpass psql -h localhost -U postgres -d physicaltheraby -f ./database/physicaltheraby.sql  # Restore dump to newly created DB
+        PGPASSWORD=testpass psql -h localhost -U postgres -d physicaltheraby -f ./database/physicaltheraby.sql  # Ensure correct path
       env:
         PGPASSWORD: testpass
 
@@ -50,7 +55,7 @@ jobs:
 
     - name: Run Tests
       env:
-        DATABASE_URL: postgres://postgres:testpass@localhost:5432/physicaltheraby  # Update DB URL with postgres user
+        DATABASE_URL: postgres://postgres:testpass@localhost:5432/physicaltheraby
       run: |
         npm install
         npm run test
