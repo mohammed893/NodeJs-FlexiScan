@@ -91,3 +91,4 @@ describe('Auth Controller', () => {
 afterAll(async () => {
     await pool.end();
 });
+

@@ -16,3 +16,4 @@ app.use(morgan('combined'));
 app.use('/auth', router)
 
 module.exports = app;
+
