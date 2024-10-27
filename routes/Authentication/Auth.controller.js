@@ -91,7 +91,7 @@ const register = async (req, res) => {
                 await connection.query(
                     `INSERT INTO patients (full_name, email, PASSWORD, date_of_birth, gender, phone_number, follow_up)
                     VALUES ($1, $2, crypt($3, gen_salt('bf')), $4, $5, $6, $7);`,
-                    [fullname, email, hashedPassword, Date_of_birth, Gender, PhoneNumber, verification] 
+                    [fullname, email, hashedPassword, Date_of_birth, Gender, PhoneNumber, follow_up] 
                 );
                 console.log("patient registered successfully:", fullname);
             }
