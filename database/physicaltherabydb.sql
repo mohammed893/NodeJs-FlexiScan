@@ -20,7 +20,7 @@ SET row_security = off;
 -- Name: physicaltherapydb; Type: DATABASE; Schema: -; Owner: postgres
 --
 
-CREATE DATABASE physicaltherapydb WITH TEMPLATE = template0 ENCODING = 'UTF8' LOCALE = 'English_United States.1252';
+CREATE DATABASE physicaltherapydb WITH TEMPLATE = template0 ENCODING = 'UTF8' LOCALE = 'en_US.UTF-8';
 
 
 ALTER DATABASE physicaltherapydb OWNER TO postgres;
@@ -146,80 +146,90 @@ DECLARE
     slot_exists BOOLEAN;
     appointment_exists BOOLEAN;
     overlapping_appointment BOOLEAN;
+    v_slot_start_time TIME;
+    v_slot_end_time TIME;
 BEGIN
-    -- Check if the selected slot exists for the doctor in the time_slots table
+    -- Lock the slot to ensure it's not booked by another transaction and retrieve start and end times
     SELECT EXISTS (
         SELECT 1
         FROM time_slots
-        WHERE time_slot_id = p_slot_id AND doctor_id = p_doctor_id
+        WHERE time_slot_id = p_slot_id 
+          AND doctor_id = p_doctor_id
+        FOR UPDATE
     ) INTO slot_exists;
 
-    -- If the slot exists, proceed
-    IF slot_exists THEN
-        -- Check if there is an existing appointment for the selected slot, date, and status
-        SELECT EXISTS (
-            SELECT 1
-            FROM appointments
-            WHERE slot_id = p_slot_id
-              AND appointment_date = p_appointment_date
-              AND status = 'scheduled'
-        ) INTO appointment_exists;
+    -- If the slot does not exist, exit early
+    IF NOT slot_exists THEN
+        RETURN FALSE;
+    END IF;
 
-        -- Check if the patient has any overlapping appointments on the same day
-        SELECT EXISTS (
-            SELECT 1
-            FROM appointments a
-            JOIN time_slots ts ON a.slot_id = ts.time_slot_id
-            WHERE a.patient_id = p_patient_id
-              AND a.appointment_date = p_appointment_date
-              AND a.status = 'scheduled'
-              AND (
-                  ts.slot_start_time < (SELECT slot_end_time FROM time_slots WHERE time_slot_id = p_slot_id)
-                  AND ts.slot_end_time > (SELECT slot_start_time FROM time_slots WHERE time_slot_id = p_slot_id)
-              )
-        ) INTO overlapping_appointment;
+    -- Getting slot start and end times
+    SELECT slot_start_time, slot_end_time
+    INTO v_slot_start_time, v_slot_end_time
+    FROM time_slots
+    WHERE time_slot_id = p_slot_id;
 
-        -- Proceed only if there is no existing appointment for the slot and no time overlap
-        IF NOT appointment_exists AND NOT overlapping_appointment AND p_appointment_date > NOW()::DATE THEN
-            -- Insert a new appointment into the appointments table
-            INSERT INTO appointments (
-                doctor_id, patient_id, slot_id, appointment_date, status, created_at, updated_at
-            )
-            VALUES (
-                p_doctor_id,
-                p_patient_id,
-                p_slot_id,
-                p_appointment_date,
-                'scheduled',
-                NOW(),
-                NOW()
-            );
-            
-            -- Log the booking action in booking_history
-            INSERT INTO booking_history (
-                doctor_id,
-                patient_id,
-                appointment_date,
-                old_start_time,
-                old_end_time,
-                action_type,
-                action_date
-            )
-            VALUES (
-                p_doctor_id,
-                p_patient_id,
-                p_appointment_date,
-                (SELECT slot_start_time FROM time_slots WHERE time_slot_id = p_slot_id),
-                (SELECT slot_end_time FROM time_slots WHERE time_slot_id = p_slot_id),
-                'booking',
-                CURRENT_TIMESTAMP
-            );
-            RETURN TRUE; -- Booking successful
-        ELSE
-            RETURN FALSE; -- Slot is already reserved or overlaps
-        END IF;
+    -- Check if there is an existing appointment for the selected slot, date, and status
+    SELECT EXISTS (
+        SELECT 1
+        FROM appointments
+        WHERE slot_id = p_slot_id
+          AND appointment_date = p_appointment_date
+          AND status = 'scheduled'
+    ) INTO appointment_exists;
+
+    -- Check if the patient has any overlapping appointments on the same day
+    SELECT EXISTS (
+        SELECT 1
+        FROM appointments a
+        JOIN time_slots ts ON a.slot_id = ts.time_slot_id
+        WHERE a.patient_id = p_patient_id
+          AND a.appointment_date = p_appointment_date
+          AND a.status = 'scheduled'
+          AND (
+              ts.slot_start_time < v_slot_end_time
+              AND ts.slot_end_time > v_slot_start_time
+          )
+    ) INTO overlapping_appointment;
+
+    -- Proceed only if there is no existing appointment and no time overlap
+    IF NOT appointment_exists AND NOT overlapping_appointment AND p_appointment_date > NOW()::DATE THEN
+        -- Insert a new appointment into the appointments table
+        INSERT INTO appointments (
+            doctor_id, patient_id, slot_id, appointment_date, status, created_at, updated_at
+        )
+        VALUES (
+            p_doctor_id,
+            p_patient_id,
+            p_slot_id,
+            p_appointment_date,
+            'scheduled',
+            NOW(),
+            NOW()
+        );
+
+        -- Log the booking action in booking_history
+        INSERT INTO booking_history (
+            doctor_id,
+            patient_id,
+            appointment_date,
+            old_start_time,
+            old_end_time,
+            action_type,
+            action_date
+        )
+        VALUES (
+            p_doctor_id,
+            p_patient_id,
+            p_appointment_date,
+            v_slot_start_time,
+            v_slot_end_time,
+            'booking',
+            CURRENT_TIMESTAMP
+        );
+        RETURN TRUE; -- Booking successful
     ELSE
-        RETURN FALSE; -- Slot is unavailable or not valid
+        RETURN FALSE; -- Slot is already reserved or overlaps
     END IF;
 
 EXCEPTION
@@ -241,6 +251,8 @@ CREATE FUNCTION public.cancel_appointment(p_slot_id integer, p_doctor_id integer
     AS $$
 DECLARE 
     appointment_exists BOOLEAN;
+    v_slot_start_time TIME;
+    v_slot_end_time TIME;
 BEGIN
     -- Check if the appointment exists
     SELECT EXISTS (
@@ -251,12 +263,20 @@ BEGIN
           AND a.slot_id = p_slot_id
           AND a.appointment_date = p_appointment_date
           AND a.status = 'scheduled'
+        FOR UPDATE
     ) INTO appointment_exists;
     
     -- If the appointment doesn't exist, return FALSE
     IF NOT appointment_exists THEN
         RETURN FALSE;
     END IF;
+    
+    -- Getting the slot start and end times
+    SELECT slot_start_time, slot_end_time
+    INTO v_slot_start_time, v_slot_end_time
+    FROM time_slots
+    WHERE time_slot_id = p_slot_id;
+
     
     -- If the appointment exists, update the appointment to be canceled
     UPDATE appointments
@@ -283,8 +303,8 @@ BEGIN
         p_doctor_id,
         p_patient_id,
         p_appointment_date,
-        (SELECT slot_start_time FROM time_slots WHERE time_slot_id = p_slot_id),
-        (SELECT slot_end_time FROM time_slots WHERE time_slot_id = p_slot_id),
+        v_slot_start_time,
+        v_slot_end_time,
         'cancellation',
         CURRENT_TIMESTAMP,
         p_cancellation_reason
@@ -305,17 +325,22 @@ CREATE FUNCTION public.reschedule_appointment(p_old_slot_id integer, p_new_slot_
     LANGUAGE plpgsql
     AS $$
 DECLARE
-    slot_available BOOLEAN;
+    v_slot_available BOOLEAN;
+    v_old_slot_start_time TIME;
+    v_old_slot_end_time TIME;
+    v_new_slot_start_time TIME;
+    v_new_slot_end_time TIME;
 BEGIN
-    -- Check if the old appointment exists and is scheduled
+    -- Check if the old appointment exists and is scheduled, with row-level locking
     IF NOT EXISTS (
-        SELECT 1
+        SELECT 1 
         FROM appointments AS a
         WHERE a.doctor_id = p_doctor_id
           AND a.patient_id = p_patient_id
           AND a.appointment_date = p_old_date
           AND a.slot_id = p_old_slot_id
           AND a.status = 'scheduled'
+        FOR UPDATE
     ) THEN
         RETURN 'Appointment not found or already rescheduled/canceled.';
     END IF;
@@ -328,24 +353,36 @@ BEGIN
           AND a.slot_id = p_new_slot_id
           AND a.appointment_date = p_new_date
           AND a.status = 'scheduled'
-    ) INTO slot_available;
+    ) INTO v_slot_available;
     
     -- If the new slot is not available, return an error message
-    IF NOT slot_available THEN
+    IF NOT v_slot_available THEN
         RETURN 'The new time slot is already booked.';
     END IF;
+
+    -- Getting the start and end times for the old and new slots
+    SELECT slot_start_time, slot_end_time
+    INTO v_old_slot_start_time, v_old_slot_end_time
+    FROM time_slots
+    WHERE time_slot_id = p_old_slot_id;
+    
+    SELECT slot_start_time, slot_end_time
+    INTO v_new_slot_start_time, v_new_slot_end_time
+    FROM time_slots
+    WHERE time_slot_id = p_new_slot_id;
     
     -- Update the appointment with the new slot and date
     UPDATE appointments
     SET slot_id = p_new_slot_id,
-        appointment_date = p_new_date
+        appointment_date = p_new_date,
+        updated_at = CURRENT_TIMESTAMP
     WHERE doctor_id = p_doctor_id
       AND patient_id = p_patient_id
       AND appointment_date = p_old_date
       AND slot_id = p_old_slot_id;
       
     -- Log the rescheduling action in booking_history
-    INSERT INTO booking_history (
+    INSERT INTO booking_history(
         doctor_id,
         patient_id,
         appointment_date,
@@ -361,16 +398,21 @@ BEGIN
         p_doctor_id,
         p_patient_id,
         p_old_date,
-        (SELECT slot_start_time FROM time_slots WHERE time_slot_id = p_old_slot_id),
-        (SELECT slot_end_time FROM time_slots WHERE time_slot_id = p_old_slot_id),
+        v_old_slot_start_time,
+        v_old_slot_end_time,
         p_new_date,
-        (SELECT slot_start_time FROM time_slots WHERE time_slot_id = p_new_slot_id),
-        (SELECT slot_end_time FROM time_slots WHERE time_slot_id = p_new_slot_id),
+        v_new_slot_start_time,
+        v_new_slot_end_time,
         'rescheduling',
         CURRENT_TIMESTAMP
     );
     
     RETURN 'Appointment successfully rescheduled.';
+    
+EXCEPTION
+    WHEN OTHERS THEN
+        RAISE NOTICE 'An error occurred: %', SQLERRM;
+        RETURN 'An error occurred while rescheduling the appointment.';
 END;
 $$;
 
