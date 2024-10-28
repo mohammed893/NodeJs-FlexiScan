@@ -38,6 +38,9 @@ SET xmloption = content;
 SET client_min_messages = warning;
 SET row_security = off;
 
+
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 --
 -- Name: public; Type: SCHEMA; Schema: -; Owner: pg_database_owner
 --
@@ -436,6 +439,7 @@ CREATE TABLE public.appointments (
     appointment_date date NOT NULL,
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now(),
+    consultation_type public.consultation_type_enum NOT NULL,
     CONSTRAINT cancellation_data_check CHECK ((((status = 'canceled'::public.appointment_status) AND (cancellation_reason IS NOT NULL) AND (cancellation_timestamp IS NOT NULL)) OR ((status <> 'canceled'::public.appointment_status) AND (cancellation_reason IS NULL) AND (cancellation_timestamp IS NULL))))
 )
 PARTITION BY RANGE (appointment_date);
@@ -597,7 +601,6 @@ CREATE TABLE public.doctors (
     verification_image_url text NOT NULL,
     doctor_id integer DEFAULT nextval('public.doctors_doctor_id_seq'::regclass) NOT NULL,
     timezone character varying(50) NOT NULL,
-    consultation_type public.consultation_type_enum NOT NULL,
     specialization character varying(255) NOT NULL,
     experience integer NOT NULL,
     slot_duration interval NOT NULL,
