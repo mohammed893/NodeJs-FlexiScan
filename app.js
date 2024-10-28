@@ -1,16 +1,18 @@
 const express = require('express');
-const app = express();
+const {router} = require('./routes/Authentication/Auth');
 const cors = require('cors');
 const morgan = require('morgan');
-const doctors = require("./routes/Doctor/Doctors");
-const bodyParser = require('body-parser');
-const auth = require('./routes/Authentication/Auth');
 
-app.use(cors());
-app.use(morgan(
-    format = "combined",
- ));
-app.use(bodyParser.json());
-app.use('/doctors', doctors);
+const app = express();
+app.use(express.json());
+require('dotenv').config();
+
+app.use(cors({
+    origin: 'http://localhost:5000'
+}));
+
+app.use(morgan('combined'));
+
+app.use('/auth', router)
 
 module.exports = app;
