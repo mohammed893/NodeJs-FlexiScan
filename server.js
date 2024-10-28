@@ -22,10 +22,4 @@ async function startServer() {
   });
 }
 
-<<<<<<< HEAD
-//starting the server - m
 startServer();
-=======
-startServer();
-
->>>>>>> 67b1604dd9af93421402f5ff997e0cb9e214c498
