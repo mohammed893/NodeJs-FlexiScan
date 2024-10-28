@@ -1,0 +1,13 @@
+GET http://localhost:3000/auth/login
+Content-Type: application/json
+
+    {
+        "email":"pspcpspc7@gmail.com",
+        "password": "password",
+        "type" : "d"
+    }
+
+###
+
+Get http://localhost:3000/doctors/
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJpYXQiOjE3Mjk2Mjc0OTMsImV4cCI6MTcyOTYyNzU1M30.9KYf6H2GilJ2FHIKltgXZAjW7KsNma1gh8h8ykOEygA
