@@ -95,6 +95,7 @@ describe('Auth Controller', () => {
             const response = await request(app)
                 .post('/auth/register')
                 .send(doctorRegisterSuccess);
+            console.log('check');
             expect(response.status).toBe(201); // 201
             expect(response.body.message).toContain('Doctor registered successfully');
         });

@@ -65,6 +65,15 @@ const register = async (req, res) => {
         const tableName = type === 'd' ? 'doctors' : 'patients';
 
         if (tableName === 'doctors') {
+            const checkIdQuery = `SELECT national_id FROM doctors WHERE national_id = $1`;
+            const checkIdResult = await connection.query(checkIdQuery, [nationalID]);
+
+            if (checkIdResult.rows.length > 0) {
+                return res.status(400).json({ status: 'error', message: 'National ID already exists for this doctor' });
+            }
+        }
+
+        if (tableName === 'doctors') {
             await connection.query(
                 `INSERT INTO doctors (full_name, email, PASSWORD, date_of_birth, gender, phone_number, age, hospital, national_id, verification_image_url)
                 VALUES ($1, $2, crypt($3, gen_salt('bf')), $4, $5, $6, $7, $8, $9, $10);`,
