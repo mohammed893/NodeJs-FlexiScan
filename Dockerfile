@@ -21,6 +21,7 @@ EXPOSE 3000
 
 CMD su - postgres -c "pg_ctl start -D /var/lib/postgresql/data -l /var/lib/postgresql/data/logfile" && \
         sleep 5 && \
-        psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'physicaltheraby'" | grep -q 1 || psql -U postgres -c "CREATE DATABASE physicaltheraby;" && \
+        psql -U postgres -c "DROP DATABASE IF EXISTS physicaltheraby;" && \
+        psql -U postgres -c "CREATE DATABASE physicaltheraby;" && \
         psql -U postgres -d physicaltheraby -f /app/database/physicaltherabydb.sql && \
         npm start
