@@ -2,30 +2,6 @@ const request = require('supertest');
 const app = require('../../app');
 const { pool } = require('../../models/configrations');
 
-const doctorLoginSuccess = {
-    email: 'newdoctor@example.com',
-    password: 'newPassword',
-    type: 'd'
-};
-
-const doctorLoginFails = {
-    email: 'doctor@example.com',
-    password: 'invalidPassword',
-    type: 'd'
-};
-
-const patientLoginSuccess = {
-    email: 'newpatient@example.com',
-    password: 'newPassword',
-    type: 'p'
-};
-
-const patientLoginFails = {
-    email: 'patient@example.com',
-    password: 'invalidPassword',
-    type: 'p'
-};
-
 const doctorRegisterSuccess = {
     fullname: 'New Doctor',
     email: 'newdoctor@example.com',
@@ -35,7 +11,7 @@ const doctorRegisterSuccess = {
     PhoneNumber: '123456789',
     Age: 34,
     Hospital: 'Example Hospital',
-    nationalID: '7686954',
+    nationalID: '7925728',
     verification: 'verificationImageUrl',
     type: 'd'
 };
@@ -51,6 +27,29 @@ const patientRegisterSuccess = {
     Address: 'Patient Address',
     nationalID: '240135',
     follow_up: false,
+    type: 'p'
+};
+const doctorLoginSuccess = {
+    email: doctorRegisterSuccess.email,
+    password: doctorRegisterSuccess.password,
+    type: doctorRegisterSuccess.type
+};
+
+const doctorLoginFails = {
+    email: 'doctor@example.com',
+    password: 'invalidPassword',
+    type: 'd'
+};
+
+const patientLoginSuccess = {
+    email: patientRegisterSuccess.email,
+    password: patientRegisterSuccess.password,
+    type: patientRegisterSuccess.type
+};
+
+const patientLoginFails = {
+    email: 'patient@example.com',
+    password: 'invalidPassword',
     type: 'p'
 };
 
