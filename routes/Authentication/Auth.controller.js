@@ -59,7 +59,7 @@ const login = async (req, res) => {
 
 // Register Function
 const register = async (req, res) => {
-    const { fullname, email, password, Date_of_birth, Gender, PhoneNumber, Age, Hospital, nationalID, verification, type } = req.body;
+    const { fullname, email, password, Date_of_birth, Gender, PhoneNumber, Age, Hospital, nationalID, verification, type, follow_up } = req.body;
     const connection = await pool.connect();
     try {
         const tableName = type === 'd' ? 'doctors' : 'patients';

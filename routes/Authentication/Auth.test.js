@@ -3,8 +3,8 @@ const app = require('../../app');
 const { pool } = require('../../models/configrations');
 
 const doctorLoginSuccess = {
-    email: 'doctor@example.com',
-    password: 'validPassword',
+    email: 'newdoctor@example.com',
+    password: 'newPassword',
     type: 'd'
 };
 
@@ -15,8 +15,8 @@ const doctorLoginFails = {
 };
 
 const patientLoginSuccess = {
-    email: 'patient@example.com',
-    password: 'validPassword',
+    email: 'newpatient@example.com',
+    password: 'newPassword',
     type: 'p'
 };
 
@@ -91,6 +91,24 @@ beforeAll(async () => {
 }); 
 
 describe('Auth Controller', () => {
+    describe('POST /auth/register', () => {
+        it('should return 201 for valid doctor registration', async () => {
+            const response = await request(app)
+                .post('/auth/register')
+                .send(doctorRegisterSuccess);
+            expect(response.status).toBe(201); // 201
+            expect(response.body.message).toContain('Doctor registered successfully');
+        });
+
+        it('should return 201 for valid patient registration', async () => {
+            const response = await request(app)
+                .post('/auth/register')
+                .send(patientRegisterSuccess);
+            expect(response.status).toBe(201); //201
+            expect(response.body.message).toContain('Patient registered successfully');
+        });
+    });
+
     describe('POST /auth/login', () => {
         it('should return 200 for valid doctor credentials', async () => {
             const response = await request(app)
@@ -122,24 +140,6 @@ describe('Auth Controller', () => {
                 .send(patientLoginFails);
             expect(response.status).toBe(401);
             expect(response.body.message).toBe('Invalid email or password');
-        });
-    });
-
-    describe('POST /auth/register', () => {
-        it('should return 201 for valid doctor registration', async () => {
-            const response = await request(app)
-                .post('/auth/register')
-                .send(doctorRegisterSuccess);
-            expect(response.status).toBe(201); // 201
-            expect(response.body.message).toContain('Doctor registered successfully');
-        });
-
-        it('should return 201 for valid patient registration', async () => {
-            const response = await request(app)
-                .post('/auth/register')
-                .send(patientRegisterSuccess);
-            expect(response.status).toBe(201); //201
-            expect(response.body.message).toContain('Patient registered successfully');
         });
     });
 });
