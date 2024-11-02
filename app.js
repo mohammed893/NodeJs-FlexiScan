@@ -1,5 +1,7 @@
 const express = require('express');
 const {router} = require('./routes/Authentication/Auth');
+const {doctorRouter} = require('./routes/Doctor/Doctors')
+const {patientRouter} = require('./routes/patient/patient')
 const cors = require('cors');
 const morgan = require('morgan');
 
@@ -14,5 +16,7 @@ app.use(cors({
 app.use(morgan('combined'));
 
 app.use('/auth', router)
+app.use('/doctors', doctorRouter )
+app.use('/patients', patientRouter )
 
 module.exports = app;

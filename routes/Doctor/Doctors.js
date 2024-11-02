@@ -1,8 +1,12 @@
 const express = require('express');
-const router = express.Router();
+const doctorRouter = express.Router();
 const doctorsController = require('./Doctors.controller');
-const {AuthToken} = require('../Authentication/Auth.controller');
+const { verifyToken } = require('../../middleware/verifyToken');
 
-router.get('/' ,doctorsController.getDoctor);
+doctorRouter.get('/', doctorsController.getAllDoctors);
+doctorRouter.get('/profile', verifyToken, doctorsController.getDoctor);
+doctorRouter.delete('/', verifyToken, doctorsController.deleteDoctor);
+doctorRouter.put('/', verifyToken, doctorsController.updateDoctor);
+doctorRouter.post('/', doctorsController.createDoctor);
 
-module.exports = router;
+module.exports = {doctorRouter};
