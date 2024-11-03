@@ -2,9 +2,9 @@ const request = require('supertest');
 const app = require('../../app');
 const { pool } = require('../../models/configrations');
 const jwt = require('jsonwebtoken');
+const Test = require('supertest/lib/test');
 
 beforeAll(async () => {
-    await pool.query('DELETE FROM doctors');
     const values = [
         'New Doctor',
         'newdoctor@example.com',
@@ -27,7 +27,7 @@ beforeAll(async () => {
 
 describe('Doctor Controller Tests', () => {
     // test getAllDoctors
-    it('should return a list of all doctors from the test data', async () => {
+    test('should return a list of all doctors from the test data', async () => {
         const response = await request(app)
             .get('/doctors');
         expect(response.status).toBe(200);
@@ -37,9 +37,9 @@ describe('Doctor Controller Tests', () => {
 
 
     // test getDoctor
-    it('should return a specific doctor', async () => {
+    test('should return a specific doctor', async () => {
         const response = await request(app)
-            .get('/doctors')
+            .get('/doctors/profile')
             .set('Authorization', `Bearer ${token}`);
         console.log('Response for getDoctor:', response.body);
         expect(response.status).toBe(200);
@@ -49,7 +49,7 @@ describe('Doctor Controller Tests', () => {
 
 
     // test deleteDoctor
-    it('should delete a doctor', async () => {
+    test('should delete a doctor', async () => {
         const response = await request(app)
             .delete('/doctors')
             .set('Authorization', `Bearer ${token}`);
@@ -57,7 +57,7 @@ describe('Doctor Controller Tests', () => {
         expect(response.body).toEqual({ message: 'Doctor deleted successfully' });
     });
     // test delete when the doctor already exists
-    it('should return 404 if doctor not found when deleting', async () => {
+    test('should return 404 if doctor not found when deleting', async () => {
         await pool.query('DELETE FROM doctors'); 
         const response = await request(app)
             .delete('/doctors')
@@ -68,10 +68,10 @@ describe('Doctor Controller Tests', () => {
 
 
     // test updateDoctor
-    it('should update doctor details', async () => {
+    test('should update doctor details', async () => {
         const updates = { full_name: 'doctor updeated' };
         const response = await request(app)
-            .put('/doctor') 
+            .put('/doctors') 
             .send(updates)
             .set('Authorization', `Bearer ${token}`);
         expect(response.status).toBe(200);
