@@ -8,11 +8,12 @@ const verifyToken = (req, res, next) => {
         return res.status(403).json({ error: 'No token provided' });
     }
 
-    jwt.verify(token, 'your_secret_key', (err, decoded) => {
+    jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
         if (err) {
+            console.log(err)
             return res.status(401).json({ error: 'Failed to authenticate token' });
         }
-        req.userID = decoded.userID;
+        req.userID = decoded.id;
         next();
     });
 };
