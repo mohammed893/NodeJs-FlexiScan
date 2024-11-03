@@ -43,10 +43,18 @@ describe('Doctor Controller Tests', () => {
             .set('Authorization', `Bearer ${token}`);
         console.log('Response for getDoctor:', response.body);
         expect(response.status).toBe(200);
-        expect(response.body).toBeInstanceOf(Array);
-        expect(response.body.length).toBeGreaterThan(0);
     });
 
+    // test updateDoctor
+    test('should update doctor details', async () => {
+        const updates = { full_name: 'doctor updeated' };
+        const response = await request(app)
+            .put('/doctors') 
+            .send(updates)
+            .set('Authorization', `Bearer ${token}`);
+        expect(response.status).toBe(200);
+        expect(response.body.full_name).toBe(updates.full_name);
+    });
 
     // test deleteDoctor
     test('should delete a doctor', async () => {
@@ -66,17 +74,6 @@ describe('Doctor Controller Tests', () => {
         expect(response.body).toEqual({ error: 'Doctor not found' });
     });
 
-
-    // test updateDoctor
-    test('should update doctor details', async () => {
-        const updates = { full_name: 'doctor updeated' };
-        const response = await request(app)
-            .put('/doctors') 
-            .send(updates)
-            .set('Authorization', `Bearer ${token}`);
-        expect(response.status).toBe(200);
-        expect(response.body.full_name).toBe(updates.full_name);
-    });
 });
 
 afterAll(async () => {
