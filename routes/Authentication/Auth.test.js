@@ -1,6 +1,7 @@
 const request = require('supertest');
 const app = require('../../app');
 const { pool } = require('../../models/configrations');
+const Test = require('supertest/lib/test');
 
 const doctorRegisterSuccess = {
     fullname: 'New Doctor',
@@ -56,42 +57,11 @@ const patientLoginFails = {
 beforeAll(async () => {
     await pool.query(`DELETE FROM doctors WHERE email = $1`, [doctorRegisterSuccess.email]);
     await pool.query(`DELETE FROM patients WHERE email = $1`, [patientRegisterSuccess.email]);
-
-    await pool.query(
-        `INSERT INTO doctors (full_name, email, PASSWORD, date_of_birth, gender, phone_number, age, hospital, national_id, verification_image_url)
-        VALUES ($1, $2, crypt($3, gen_salt('bf')), $4, $5, $6, $7, $8, $9, $10);`,
-        [
-        doctorRegisterSuccess.fullname,
-        doctorRegisterSuccess.email,
-        doctorRegisterSuccess.password,
-        doctorRegisterSuccess.Date_of_birth,
-        doctorRegisterSuccess.Gender,
-        doctorRegisterSuccess.PhoneNumber,
-        doctorRegisterSuccess.Age,
-        doctorRegisterSuccess.Hospital,
-        doctorRegisterSuccess.nationalID,
-        doctorRegisterSuccess.verification
-    ]
-    );
-
-    await pool.query(
-        `INSERT INTO patients (full_name, email, PASSWORD, date_of_birth, gender, phone_number, follow_up)
-        VALUES ($1, $2, crypt($3, gen_salt('bf')), $4, $5, $6, $7);`,
-        [
-        patientRegisterSuccess.fullname,
-        patientRegisterSuccess.email,
-        patientRegisterSuccess.password,
-        patientRegisterSuccess.Date_of_birth,
-        patientRegisterSuccess.Gender,
-        patientRegisterSuccess.PhoneNumber,
-        patientRegisterSuccess.follow_up
-    ]
-    );
 }); 
 
 describe('Auth Controller', () => {
     describe('POST /auth/register', () => {
-        it('should return 201 for valid doctor registration', async () => {
+        test('should return 201 for valid doctor registration', async () => {
             const response = await request(app)
                 .post('/auth/register')
                 .send(doctorRegisterSuccess);
@@ -100,7 +70,7 @@ describe('Auth Controller', () => {
             expect(response.body.message).toContain('Doctor registered successfully');
         });
 
-        it('should return 201 for valid patient registration', async () => {
+        test('should return 201 for valid patient registration', async () => {
             const response = await request(app)
                 .post('/auth/register')
                 .send(patientRegisterSuccess);
@@ -110,7 +80,7 @@ describe('Auth Controller', () => {
     });
 
     describe('POST /auth/login', () => {
-        it('should return 200 for valid doctor credentials', async () => {
+        test('should return 200 for valid doctor credentials', async () => {
             const response = await request(app)
                 .post('/auth/login')
                 .send(doctorLoginSuccess);
@@ -118,7 +88,7 @@ describe('Auth Controller', () => {
             expect(response.body).toHaveProperty('token');
         });
 
-        it('should return 401 for invalid doctor credentials', async () => {
+        test('should return 401 for invalid doctor credentials', async () => {
             const response = await request(app)
                 .post('/auth/login')
                 .send(doctorLoginFails);
@@ -126,7 +96,7 @@ describe('Auth Controller', () => {
             expect(response.body.message).toBe('Invalid email or password');
         });
 
-        it('should return 200 for valid patient credentials', async () => {
+        test('should return 200 for valid patient credentials', async () => {
             const response = await request(app)
                 .post('/auth/login')
                 .send(patientLoginSuccess);
@@ -134,7 +104,7 @@ describe('Auth Controller', () => {
             expect(response.body).toHaveProperty('token');
         });
 
-        it('should return 401 for invalid patient credentials', async () => {
+        test('should return 401 for invalid patient credentials', async () => {
             const response = await request(app)
                 .post('/auth/login')
                 .send(patientLoginFails);

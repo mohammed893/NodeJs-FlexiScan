@@ -1,7 +1,6 @@
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
-const { pool, database } = require('../../models/configrations');
-const { verifyToken } = require('../../middleware/verifyToken');
+const { pool } = require('../../models/configrations');
 
 const login = async (req, res) => {
     const email = req.body.email;
