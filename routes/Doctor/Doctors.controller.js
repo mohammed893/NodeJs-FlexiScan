@@ -4,10 +4,10 @@ const {pool} = require('../../models/configrations');
 const getAllDoctors = async (req, res) => {
     try {
         const allDoctors = await pool.query('SELECT * FROM doctors');
-        res.status(200).json(allDoctors.rows);
+        return res.status(200).json(allDoctors.rows);
     } catch (error) {
         console.error(error);
-        res.status(500).json({ error: 'Failed to retrieve doctors' });
+        return res.status(500).json({ error: 'Failed to retrieve doctors' });
     }
 };
 
@@ -20,35 +20,12 @@ const getDoctor = async (req, res) => {
         if (doctor.rows.length === 0) {
             return res.status(404).json({ error: 'Doctor not found' });
         }
-        res.status(200).json(doctor.rows[0]);
+        return res.status(200).json(doctor.rows[0]);
     } catch (error) {
         console.error(error);
-        res.status(500).json({ error: 'Failed to retrieve doctor' });
+        return res.status(500).json({ error: 'Failed to retrieve doctor' });
     }
 };
-
-// create a doctor 
-const createDoctor = async (req, res) =>{
-    const { fullname, email, password, Date_of_birth, Gender, PhoneNumber, Age, Hospital, nationalID, verification } = req.body;
-    try {
-        // check if the doctor already exists
-        const checkIdQuery = `SELECT national_id FROM doctors WHERE national_id = $1`;
-        const existingDoctor = await pool.query(checkIdQuery, [nationalID]);
-        if (existingDoctor.rows.length > 0) {
-            return res.status(400).json({ status: 'error', message: 'Doctor already exists' });
-        }
-
-        const newdoctor = await pool.query(`INSERT INTO doctors (full_name, email, PASSWORD, date_of_birth, gender, phone_number, age, hospital, national_id, verification_image_url)
-                VALUES ($1, $2, crypt($3, gen_salt('bf')), $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
-                [fullname, email, password, Date_of_birth, Gender, PhoneNumber, Age, Hospital, nationalID, verification])
-        console.log('Doctor created Successfully', fullname)
-        return res.status(201).json(newdoctor.rows[0])
-        
-    } catch (err) {
-        res.status(500).json({ error: 'Failed to create doctor' });
-    }
-    
-}
 
 //Delete a doctor 
 const deleteDoctor = async (req, res) => {
@@ -61,42 +38,51 @@ const deleteDoctor = async (req, res) => {
         return res.status(200).json({ message: 'Doctor deleted successfully' });
     } catch (err) { 
         console.error(err);
-        res.status(500).json({ error: 'Failed to delete doctor' });
+        return res.status(500).json({ error: 'Failed to delete doctor' });
     }
 };
 
-//Update a doctor 
+// Update a doctor
 const updateDoctor = async (req, res) => {
     const doctor_id = req.userID;
-    const updates = req.body; 
+    const updates = req.body;
 
-  // If no data is provided to update, return an error
-    if (Object.keys(updates).length === 0) {
-        return res.status(400).json({ error: 'No datas to update' });
-    }
-
-  // Build dynamic SQL query
+    const allowedFields = ['full_name', 'email','PhoneNumber'];
     const setClause = [];
     const values = [];
 
-  // Add each updated field to the SQL query
+    // Filter updates to include only allowed fields
     for (const key in updates) {
-        setClause.push(`${key} = $${values.length + 1}`); // Add update field
-        values.push(updates[key]);
+        if (allowedFields.includes(key)) {
+            setClause.push(`${key} = $${values.length + 1}`);
+            values.push(updates[key]);
+        }
     }
 
-    values.push(doctor_id); 
+    if (setClause.length === 0) {
+        return res.status(400).json({ error: 'No valid fields provided for update' });
+    }
+
+    // Add doctor ID to values array
+    values.push(doctor_id);
 
     try {
-        const result = await pool.query( `UPDATE doctors SET ${setClause.join(', ')} WHERE doctor_id = $${values.length} RETURNING *`, values); // Execute the query
+        const result = await pool.query(
+            `UPDATE doctors SET ${setClause.join(', ')} WHERE doctor_id = $${values.length} RETURNING *`,
+            values
+        );
+
+        // Check if the doctor was found
         if (result.rows.length === 0) {
-        return res.status(404).json({ error: 'Doctor not found' });
-    }
-        res.status(200).json(result.rows[0]); 
+            return res.status(404).json({ error: 'Doctor not found' });
+        }
+
+        // Return the updated doctor data
+        return res.status(200).json(result.rows[0]);
     } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to update doctor' });
-}
+        console.error(error);
+        return res.status(500).json({ error: 'Failed to update doctor' });
+    }
 };
 
 module.exports = {
@@ -104,5 +90,4 @@ module.exports = {
     getDoctor,
     deleteDoctor,
     updateDoctor,
-    createDoctor
 } 

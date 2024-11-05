@@ -4,10 +4,10 @@ const {pool} = require('../../models/configrations');
 const getAllPatients = async (req, res) => {
     try {
         const allPatients = await pool.query('SELECT * FROM patients');
-        res.status(200).json(allPatients.rows);
+        return res.status(200).json(allPatients.rows);
     } catch (error) {
         console.error(error);
-        res.status(500).json({ error: 'Failed to retrieve Patients' });
+        return res.status(500).json({ error: 'Failed to retrieve Patients' });
     }
 };
 
@@ -20,35 +20,13 @@ const getPatient = async (req, res) => {
         if (patient.rows.length === 0) {
             return res.status(404).json({ error: 'patient not found' });
         }
-        res.status(200).json(patient.rows[0]);
+        return res.status(200).json(patient.rows[0]);
     } catch (error) {
         console.error(error);
-        res.status(500).json({ error: 'Failed to retrieve patient' });
+        return res.status(500).json({ error: 'Failed to retrieve patient' });
     }
 };
 
-// create a patient 
-const createPatient = async (req, res) =>{
-    const { fullname, email, password, Date_of_birth, Gender, PhoneNumber, follow_up } = req.body;
-    try {
-        // check if the doctor already exists
-        const checkemailQuery = `SELECT email FROM patients WHERE email = $1`;
-        const existingpatient = await pool.query(checkemailQuery, [email]);
-        if (existingpatient.rows.length > 0) {
-            return res.status(400).json({ status: 'error', message: 'patient already exists' });
-        }
-
-        const newPatient = await pool.query(`INSERT INTO patients (full_name, email, PASSWORD, date_of_birth, gender, phone_number, follow_up)
-                VALUES ($1, $2 ,crypt($3, gen_salt('bf')), $4, $5, $6, $7)RETURNING *;`,
-                [fullname, email, password, Date_of_birth, Gender, PhoneNumber, follow_up])
-        console.log('patient created Successfully', fullname)
-        return res.status(201).json(newPatient.rows[0])
-        
-    } catch (err) {
-        res.status(500).json({ error: 'Failed to create patient' });
-    }
-    
-}
 
 //Delete a patient 
 const deletePatient = async (req, res) => {
@@ -61,48 +39,55 @@ const deletePatient = async (req, res) => {
         return res.status(200).json({ message: 'patient deleted successfully' });
     } catch (err) { 
         console.error(err);
-        res.status(500).json({ error: 'Failed to delete patient' });
+        return res.status(500).json({ error: 'Failed to delete patient' });
     }
 };
 
-//Update a patient 
+// Update a patient
 const updatePatient = async (req, res) => {
     const patient_id = req.userID;
-    const updates = req.body; 
+    const updates = req.body;
 
-  // If no data is provided to update, return an error
-    if (Object.keys(updates).length === 0) {
-        return res.status(400).json({ error: 'No datas to update' });
-    }
-
-  // Build dynamic SQL query
+    const allowedFields = ['full_name', 'email', 'PhoneNumber'];
     const setClause = [];
     const values = [];
 
-  // Add each updated field to the SQL query
+    // Filter updates to include only allowed fields
     for (const key in updates) {
-        setClause.push(`${key} = $${values.length + 1}`); // Add update field
-        values.push(updates[key]);
+        if (allowedFields.includes(key)) {
+            setClause.push(`${key} = $${values.length + 1}`);
+            values.push(updates[key]);
+        }
     }
 
-    values.push(patient_id); 
+    if (setClause.length === 0) {
+        return res.status(400).json({ error: 'No valid fields provided for update' });
+    }
+
+    values.push(patient_id);
 
     try {
-        const result = await pool.query( `UPDATE patients SET ${setClause.join(', ')} WHERE patient_id = $${values.length} RETURNING *`, values); 
+        const result = await pool.query(
+            `UPDATE patients SET ${setClause.join(', ')} WHERE patient_id = $${values.length} RETURNING *`,
+            values
+        );
+
+        // Check if the patient was found
         if (result.rows.length === 0) {
-        return res.status(404).json({ error: 'patient not found' });
-    }
-        res.status(200).json(result.rows[0]); 
+            return res.status(404).json({ error: 'Patient not found' });
+        }
+
+        // Return the updated patient data
+        return res.status(200).json(result.rows[0]);
     } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to update patient' });
-}
+        console.error(error);
+        return res.status(500).json({ error: 'Failed to update patient' });
+    }
 };
 
 module.exports = {
     getAllPatients,
     getPatient,
     deletePatient,
-    updatePatient,
-    createPatient
+    updatePatient
 } 
