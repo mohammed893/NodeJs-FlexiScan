@@ -81,12 +81,12 @@ jobs:
             fi
             
             echo "Stopping and removing existing container if it exists..."
-            if [ "$(docker ps -q -f name=thewhale)" ]; then
-              docker stop thewhale
+            if [ "$(docker ps -q -f name=thewhalec)" ]; then
+              docker stop thewhalec
             fi
             
-            if [ "$(docker ps -a -q -f name=thewhale)" ]; then
-              docker rm thewhale
+            if [ "$(docker ps -a -q -f name=thewhalec)" ]; then
+              docker rm thewhalec
             fi
 
             echo "Running new Docker container..."
