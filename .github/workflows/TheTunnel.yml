@@ -94,7 +94,7 @@ jobs:
             fi
             
             echo "Running new Docker container..."
-            docker run -d --name thewhale -p 3000:3000 -v physicaltheraby:/var/lib/postgresql/data ${{ secrets.AWS_MY_ID }}.dkr.ecr.us-east-1.amazonaws.com/thewhale:latest
+            docker run -d --name thewhalec -p 3000:3000 -v physicaltheraby:/var/lib/postgresql/data ${{ secrets.AWS_MY_ID }}.dkr.ecr.us-east-1.amazonaws.com/thewhale:latest
             
             if [ $? -ne 0 ]; then
               echo "Failed to run Docker container"
