@@ -101,6 +101,6 @@ jobs:
             docker image prune -f
 
             echo "Putting The Card of the Whale"
-            docker exec -it thewhalec /bin/sh
+            docker exec -it thewhalec /bin/sh -c "
               echo "ACCESS_TOKEN_SECRET=$TheRamz" > .env
-        
+              "
