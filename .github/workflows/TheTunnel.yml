@@ -98,20 +98,9 @@ jobs:
             fi
 
             echo "Removing the Dead Image"
-            docker image prune;y
-            
+            docker image prune -f
+
             echo "Putting The Card of the Whale"
-            if docker exec -it thewhalec /bin/sh; then
-              echo "Yes Yes Yes"
-            else
-              echo "No No No"
-              exit 1
-            fi
-             
-            echo "ACCESS_TOKEN_SECRET=$TheRamz" > .env
-            if [ $? -ne 0 ]; then
-               echo "I Couldn't find the env file"
-               exit 1
-            else
-              echo "Finaaaallyyyyy"
-            fi
+            docker exec -it thewhalec /bin/sh
+              echo "ACCESS_TOKEN_SECRET=$TheRamz" > .env
+        
