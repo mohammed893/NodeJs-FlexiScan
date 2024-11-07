@@ -72,6 +72,14 @@ jobs:
              exit 1
             fi
             
+            echo "Pulling Docker image..."
+            docker pull ${{ secrets.AWS_MY_ID }}.dkr.ecr.us-east-1.amazonaws.com/thewhale:latest
+            
+            if [ $? -ne 0 ]; then
+              echo "Failed to pull Docker image"
+              exit 1
+            fi
+            
             echo "Stopping and removing existing container if it exists..."
             if [ "$(docker ps -q -f name=thewhale)" ]; then
               docker stop thewhale
@@ -81,18 +89,6 @@ jobs:
               docker rm thewhale
             fi
 
-            # if [ "$(docker image ls -a -q -f name=thewhale)" ]; then
-            #  docker rmi -f thewhale
-            # fi
-
-            echo "Pulling Docker image..."
-            docker pull ${{ secrets.AWS_MY_ID }}.dkr.ecr.us-east-1.amazonaws.com/thewhale:latest
-            
-            if [ $? -ne 0 ]; then
-              echo "Failed to pull Docker image"
-              exit 1
-            fi
-            
             echo "Running new Docker container..."
             docker run -d --name thewhalec -p 3000:3000 -v physicaltheraby:/var/lib/postgresql/data ${{ secrets.AWS_MY_ID }}.dkr.ecr.us-east-1.amazonaws.com/thewhale:latest
             
@@ -101,11 +97,21 @@ jobs:
               exit 1
             fi
 
-            # echo "Putting The Card of the Whale"
-            # docker exec -it thewhale /bin/sh
-            # echo "ACCESS_TOKEN_SECRET=$TheRamz" > .env
-
-            # if [ $? -ne 0 ]; then
-              # echo "I Couldn't find the env file"
-              # exit 1
-            # fi
+            echo "Removing the Dead Image"
+            docker image prune
+            
+            echo "Putting The Card of the Whale"
+            if docker exec -it thewhale /bin/sh; then
+              echo "Yes Yes Yes"
+            else
+              echo "No No No"
+              exit 1
+            fi
+             
+            echo "ACCESS_TOKEN_SECRET=$TheRamz" > .env
+            if [ $? -ne 0 ]; then
+               echo "I Couldn't find the env file"
+               exit 1
+            else
+              echo "Finaaaallyyyyy"
+            fi
