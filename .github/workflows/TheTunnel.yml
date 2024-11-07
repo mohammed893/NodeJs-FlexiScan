@@ -98,10 +98,10 @@ jobs:
             fi
 
             echo "Removing the Dead Image"
-            docker image prune
+            docker image prune;y
             
             echo "Putting The Card of the Whale"
-            if docker exec -it thewhale /bin/sh; then
+            if docker exec -it thewhalec /bin/sh; then
               echo "Yes Yes Yes"
             else
               echo "No No No"
