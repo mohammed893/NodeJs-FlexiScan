@@ -81,9 +81,9 @@ jobs:
               docker rm thewhale
             fi
 
-            if [ "$(docker image ls -a -q -f name=thewhale)" ]; then
-              docker rmi -f thewhale
-            fi
+            # if [ "$(docker image ls -a -q -f name=thewhale)" ]; then
+            #  docker rmi -f thewhale
+            # fi
 
             echo "Pulling Docker image..."
             docker pull ${{ secrets.AWS_MY_ID }}.dkr.ecr.us-east-1.amazonaws.com/thewhale:latest
@@ -101,11 +101,11 @@ jobs:
               exit 1
             fi
 
-            echo "Putting The Card of the Whale"
-            docker exec -it thewhale /bin/sh
-            echo "ACCESS_TOKEN_SECRET=$TheRamz" > .env
+            # echo "Putting The Card of the Whale"
+            # docker exec -it thewhale /bin/sh
+            # echo "ACCESS_TOKEN_SECRET=$TheRamz" > .env
 
-            if [ $? -ne 0 ]; then
-              echo "I Couldn't find the env file"
-              exit 1
-            fi
+            # if [ $? -ne 0 ]; then
+              # echo "I Couldn't find the env file"
+              # exit 1
+            # fi
