@@ -62,6 +62,7 @@ jobs:
             export AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
             export AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
             export AWS_REGION=us-east-1
+            export TheRamz=${{ secrets.ACCESS_TOKEN_SECRET}}
             
             echo "Logging into AWS ECR..."
             aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${{ secrets.AWS_MY_ID }}.dkr.ecr.us-east-1.amazonaws.com
@@ -69,14 +70,6 @@ jobs:
             if [ $? -ne 0 ]; then
              echo "AWS ECR login failed"
              exit 1
-            fi
-            
-            echo "Pulling Docker image..."
-            docker pull ${{ secrets.AWS_MY_ID }}.dkr.ecr.us-east-1.amazonaws.com/thewhale:latest
-            
-            if [ $? -ne 0 ]; then
-              echo "Failed to pull Docker image"
-              exit 1
             fi
             
             echo "Stopping and removing existing container if it exists..."
@@ -87,11 +80,32 @@ jobs:
             if [ "$(docker ps -a -q -f name=thewhale)" ]; then
               docker rm thewhale
             fi
+
+            if [ "$(docker image ls -a -q -f name=thewhale)" ]; then
+              docker rmi -f thewhale
+            fi
+
+            echo "Pulling Docker image..."
+            docker pull ${{ secrets.AWS_MY_ID }}.dkr.ecr.us-east-1.amazonaws.com/thewhale:latest
+            
+            if [ $? -ne 0 ]; then
+              echo "Failed to pull Docker image"
+              exit 1
+            fi
             
             echo "Running new Docker container..."
             docker run -d --name thewhale -p 3000:3000 -v physicaltheraby:/var/lib/postgresql/data ${{ secrets.AWS_MY_ID }}.dkr.ecr.us-east-1.amazonaws.com/thewhale:latest
             
             if [ $? -ne 0 ]; then
               echo "Failed to run Docker container"
+              exit 1
+            fi
+
+            echo "Putting The Card of the Whale"
+            docker exec -it thewhale /bin/sh
+            echo "ACCESS_TOKEN_SECRET=$TheRamz" > .env
+
+            if [ $? -ne 0 ]; then
+              echo "I Couldn't find the env file"
               exit 1
             fi
