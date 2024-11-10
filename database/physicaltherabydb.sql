@@ -20,7 +20,7 @@ SET row_security = off;
 -- Name: physicaltherapydb; Type: DATABASE; Schema: -; Owner: postgres
 --
 
-CREATE DATABASE physicaltherapydb WITH TEMPLATE = template0 ENCODING = 'UTF8' LOCALE = 'en_US.UTF-8';
+CREATE DATABASE physicaltherapydb WITH TEMPLATE = template0 ENCODING = 'UTF8' LOCALE = 'English_United States.1252';
 
 
 ALTER DATABASE physicaltherapydb OWNER TO postgres;
@@ -38,8 +38,10 @@ SET xmloption = content;
 SET client_min_messages = warning;
 SET row_security = off;
 
+-- Name: pgcrypto; Type: EXTENSION; Schema: -; Owner: -
 
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
+CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA public;
+
 
 --
 -- Name: public; Type: SCHEMA; Schema: -; Owner: pg_database_owner
@@ -555,10 +557,10 @@ ALTER SEQUENCE public.consultationrecords_conultation_id_seq OWNER TO postgres;
 --
 
 CREATE TABLE public.consultation_records (
-    consultation integer DEFAULT nextval('public.consultationrecords_conultation_id_seq'::regclass) NOT NULL,
-    doctor_id integer,
-    patient_id integer,
-    consultation_note text NOT NULL,
+    consultation_id integer DEFAULT nextval('public.consultationrecords_conultation_id_seq'::regclass) NOT NULL,
+    doctor_id integer NOT NULL,
+    patient_id integer NOT NULL,
+    consultation_note text,
     prescription text NOT NULL,
     follow_up_date timestamp without time zone,
     created_at timestamp without time zone DEFAULT now(),
@@ -592,17 +594,17 @@ CREATE TABLE public.doctors (
     full_name text NOT NULL,
     email text NOT NULL,
     password text NOT NULL,
-    date_of_birth date NOT NULL,
+    date_of_birth date,
     gender character varying(20) NOT NULL,
     phone_number text NOT NULL,
-    age integer NOT NULL,
+    age integer,
     hospital text,
     national_id bigint NOT NULL,
     verification_image_url text NOT NULL,
     doctor_id integer DEFAULT nextval('public.doctors_doctor_id_seq'::regclass) NOT NULL,
     timezone character varying(50) NOT NULL,
     specialization character varying(255) NOT NULL,
-    experience integer NOT NULL,
+    experience integer,
     slot_duration interval NOT NULL,
     working_hours jsonb NOT NULL,
     available_days jsonb NOT NULL,
@@ -636,10 +638,10 @@ CREATE TABLE public.patients (
     full_name text NOT NULL,
     email text NOT NULL,
     password text NOT NULL,
-    date_of_birth date NOT NULL,
+    date_of_birth date,
     gender character varying(10) NOT NULL,
-    phone_number text NOT NULL,
-    follow_up boolean NOT NULL,
+    phone_number text,
+    follow_up boolean,
     insurance_id text,
     primary_doctor_id integer
 );
@@ -700,7 +702,7 @@ ALTER TABLE ONLY public.booking_history
 --
 
 ALTER TABLE ONLY public.consultation_records
-    ADD CONSTRAINT consultation_records_pkey PRIMARY KEY (consultation);
+    ADD CONSTRAINT consultation_records_pkey PRIMARY KEY (consultation_id);
 
 
 --
@@ -760,6 +762,43 @@ ALTER TABLE ONLY public.appointments
 
 
 --
+-- Name: doctors unique_doctors_email; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.doctors
+    ADD CONSTRAINT unique_doctors_email UNIQUE (email);
+
+
+--
+-- Name: patients unique_patients_email; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.patients
+    ADD CONSTRAINT unique_patients_email UNIQUE (email);
+
+
+--
+-- Name: consultation_records_doctor_id_idx; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX consultation_records_doctor_id_idx ON public.consultation_records USING btree (doctor_id);
+
+
+--
+-- Name: consultation_records_patient_id_idx; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX consultation_records_patient_id_idx ON public.consultation_records USING btree (patient_id);
+
+
+--
+-- Name: doctors_experience_idx; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX doctors_experience_idx ON public.doctors USING btree (experience);
+
+
+--
 -- Name: idx_appointments_appointment_date; Type: INDEX; Schema: public; Owner: postgres
 --
 
@@ -806,6 +845,13 @@ CREATE INDEX idx_booking_history_date ON public.booking_history USING btree (app
 --
 
 CREATE INDEX idx_time_slots ON public.time_slots USING btree (doctor_id, slot_start_time);
+
+
+--
+-- Name: payment_status_idx; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX payment_status_idx ON public.billings USING btree (payment_status);
 
 
 --
@@ -893,7 +939,7 @@ ALTER TABLE ONLY public.patients
 --
 
 ALTER TABLE ONLY public.time_slots
-    ADD CONSTRAINT time_slots_doctor_id_fkey FOREIGN KEY (doctor_id) REFERENCES public.doctors(doctor_id);
+    ADD CONSTRAINT time_slots_doctor_id_fkey FOREIGN KEY (doctor_id) REFERENCES public.doctors(doctor_id) ON DELETE CASCADE;
 
 
 --
