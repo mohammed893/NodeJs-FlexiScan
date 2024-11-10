@@ -1,6 +1,6 @@
 const http = require('http');
 const app = require('./app');
-const PORT = process.env.PORT || 3000;
+const PORT = 3000 ;
 const server = http.createServer(app);
 const { pool , database} = require('./models/configrations');
 const { initializeSocket } = require('./middleware/socket.controller');
@@ -22,5 +22,5 @@ async function startServer() {
   });
 }
 
-//starting the server - m
 startServer();
+

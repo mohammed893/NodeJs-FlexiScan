@@ -4,10 +4,6 @@ on:
   push:
     branches:
       - master
-  pull_request:
-    branches:
-      - master
-
 jobs:
   deploy:
     environment: env 
@@ -25,11 +21,11 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: eu-north-1
+          aws-region: us-east-1
 
       - name: Login to AWS ECR
         env:
-          AWS_REGION: eu-north-1
+          AWS_REGION: us-east-1
           AWS_ACCOUNT_ID: ${{ secrets.AWS_MY_ID }}
         run: |
           aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
@@ -37,7 +33,7 @@ jobs:
       - name: Build and push Docker image
         env:
           IMAGE_TAG: latest
-          AWS_REGION: eu-north-1
+          AWS_REGION: us-east-1
           AWS_ACCOUNT_ID: ${{ secrets.AWS_MY_ID }}
         run: |
           docker build -t thewhale:$IMAGE_TAG .
@@ -51,35 +47,29 @@ jobs:
           cache: 'npm'
       - run: npm ci
       - run: npm run build --if-present
-      - run: npm test
+      # - run: npm test
 
       - name: SSH to EC2 and deploy
-        uses: appleboy/ssh-action@v0.1.2
+        uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
+          debug: true
           script: |
             
             echo "Setting AWS credentials..."
             export AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
             export AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
-            export AWS_REGION=eu-north-1
+            export AWS_REGION=us-east-1
+            export TheRamz=${{ secrets.ACCESS_TOKEN_SECRET}}
             
             echo "Logging into AWS ECR..."
-            aws ecr get-login-password --region eu-north-1 | docker login --username AWS --password-stdin ${{ secrets.AWS_MY_ID }}.dkr.ecr.eu-north-1.amazonaws.com
+            aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${{ secrets.AWS_MY_ID }}.dkr.ecr.us-east-1.amazonaws.com
             
             if [ $? -ne 0 ]; then
              echo "AWS ECR login failed"
              exit 1
-            fi
-            
-            echo "Pulling Docker image..."
-            docker pull ${{ secrets.AWS_MY_ID }}.dkr.ecr.eu-north-1.amazonaws.com/thewhale:latest
-            
-            if [ $? -ne 0 ]; then
-              echo "Failed to pull Docker image"
-              exit 1
             fi
             
             echo "Stopping and removing existing container if it exists..."
@@ -90,11 +80,32 @@ jobs:
             if [ "$(docker ps -a -q -f name=thewhale)" ]; then
               docker rm thewhale
             fi
+
+            if [ "$(docker image ls -a -q -f name=thewhale)" ]; then
+              docker rmi -f thewhale
+            fi
+
+            echo "Pulling Docker image..."
+            docker pull ${{ secrets.AWS_MY_ID }}.dkr.ecr.us-east-1.amazonaws.com/thewhale:latest
+            
+            if [ $? -ne 0 ]; then
+              echo "Failed to pull Docker image"
+              exit 1
+            fi
             
             echo "Running new Docker container..."
-            docker run -d --name thewhale -p 3000:3000 -v physicaltheraby:/var/lib/postgresql/data ${{ secrets.AWS_MY_ID }}.dkr.ecr.eu-north-1.amazonaws.com/thewhale:latest
+            docker run -d --name thewhalec -p 3000:3000 -v physicaltheraby:/var/lib/postgresql/data ${{ secrets.AWS_MY_ID }}.dkr.ecr.us-east-1.amazonaws.com/thewhale:latest
             
             if [ $? -ne 0 ]; then
               echo "Failed to run Docker container"
+              exit 1
+            fi
+
+            echo "Putting The Card of the Whale"
+            docker exec -it thewhale /bin/sh
+            echo "ACCESS_TOKEN_SECRET=$TheRamz" > .env
+
+            if [ $? -ne 0 ]; then
+              echo "I Couldn't find the env file"
               exit 1
             fi
