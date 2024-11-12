@@ -58,8 +58,9 @@ const login = async (req, res) => {
 
 // Register Function
 const register = async (req, res) => {
-    const { fullname, email, password, Date_of_birth, Gender, PhoneNumber, Age, Hospital, nationalID, verification, type, follow_up } = req.body;
+    const { fullname, email, password, Date_of_birth, Gender, PhoneNumber, Age, Hospital, nationalID, verification, available_days, type, working_hours, slot_duration, timezone, specialization, experience, follow_up, insurance_id } = req.body;
     const connection = await pool.connect();
+    const followUpValue = follow_up || false ;
     try {
         const tableName = type === 'd' ? 'doctors' : 'patients';
 
@@ -74,16 +75,16 @@ const register = async (req, res) => {
 
         if (tableName === 'doctors') {
             await connection.query(
-                `INSERT INTO doctors (full_name, email, PASSWORD, date_of_birth, gender, phone_number, age, hospital, national_id, verification_image_url)
-                VALUES ($1, $2, crypt($3, gen_salt('bf')), $4, $5, $6, $7, $8, $9, $10);`,
-                [fullname, email, password, Date_of_birth, Gender, PhoneNumber, Age, Hospital, nationalID, verification]
+                `INSERT INTO doctors (full_name, email, PASSWORD, date_of_birth, gender, phone_number, age, hospital, national_id, verification_image_url, available_days, working_hours, slot_duration, timezone, specialization, experience)
+                VALUES ($1, $2 ,crypt($3, gen_salt('bf')), $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12::jsonb, $13, $14, $15, $16)`,
+                [fullname, email, password, Date_of_birth, Gender, PhoneNumber, Age, Hospital, nationalID, verification, available_days, working_hours, slot_duration, timezone, specialization, experience]
             );
             console.log("Doctor registered successfully:", fullname);
         } else {
             await connection.query(
-                `INSERT INTO patients (full_name, email, PASSWORD, date_of_birth, gender, phone_number, follow_up)
-                VALUES ($1, $2, crypt($3, gen_salt('bf')), $4, $5, $6, $7);`,
-                [fullname, email, password, Date_of_birth, Gender, PhoneNumber, follow_up]
+                `INSERT INTO patients (full_name, email, PASSWORD, date_of_birth, gender, phone_number, follow_up, insurance_id)
+                VALUES ($1, $2 ,crypt($3, gen_salt('bf')), $4, $5, $6, $7, $8);`,
+                [fullname, email, password, Date_of_birth, Gender, PhoneNumber, followUpValue, insurance_id]
             );
             console.log("Patient registered successfully:", fullname);
         }

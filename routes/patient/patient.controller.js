@@ -27,12 +27,11 @@ const getPatient = async (req, res) => {
     }
 };
 
-
 //Delete a patient 
 const deletePatient = async (req, res) => {
     const patient_id = req.userID;
     try {
-        const patientdeleted = await pool.query('DELETE FROM patients WHERE patient_id = $1', [patient_id]);
+        const patientdeleted = await pool.query('DELETE FROM patients WHERE patient_id = $1 RETURNING *', [patient_id]);
         if (patientdeleted.rowCount === 0) { 
             return res.status(404).json({ error: 'patient not found' });
         }
@@ -47,7 +46,9 @@ const deletePatient = async (req, res) => {
 const updatePatient = async (req, res) => {
     const patient_id = req.userID;
     const updates = req.body;
-
+    if (!patient_id) {
+        return res.status(400).json({ error: 'Invalid patient ID' });
+    }
     const allowedFields = ['full_name', 'email', 'PhoneNumber'];
     const setClause = [];
     const values = [];
