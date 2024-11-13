@@ -13,7 +13,15 @@ const doctorRegisterSuccess = {
     Hospital: 'Example Hospital',
     nationalID: '7925728',
     verification: 'verificationImageUrl',
-    available_days: ["Monday", "Wednesday"], 
+    available_days:{
+        "Monday": true,
+        "Tuesday": true,
+        "Wednesday": false,
+        "Thursday": true,
+        "Friday": true,
+        "Saturday": false,
+        "Sunday": false 
+    }, 
     working_hours: {
         start: '09:00',
         end: '17:00'
