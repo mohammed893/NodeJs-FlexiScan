@@ -2,7 +2,6 @@ const request = require('supertest');
 const app = require('../../app');
 const { pool } = require('../../models/configrations');
 const jwt = require('jsonwebtoken');
-const Test = require('supertest/lib/test');
 
 beforeAll(async () => {
     const values = [
@@ -12,10 +11,11 @@ beforeAll(async () => {
         '1990-01-01',
         'M',
         '123456789',
-        false
+        false,
+        '7074'
     ]
-    const result = await pool.query(`INSERT INTO patients (full_name, email, PASSWORD, date_of_birth, gender, phone_number, follow_up)
-                VALUES ($1, $2 ,crypt($3, gen_salt('bf')), $4, $5, $6, $7)RETURNING *`, values);
+    const result = await pool.query(`INSERT INTO patients (full_name, email, PASSWORD, date_of_birth, gender, phone_number, follow_up, insurance_id)
+                    VALUES ($1, $2 ,crypt($3, gen_salt('bf')), $4, $5, $6, $7, $8) RETURNING *`, values);
     patientId = result.rows[0].patient_id;
     token = jwt.sign({ id: patientId }, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '1h' });
     console.log('Generated Token: ', token)

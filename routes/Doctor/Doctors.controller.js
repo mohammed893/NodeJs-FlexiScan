@@ -31,7 +31,7 @@ const getDoctor = async (req, res) => {
 const deleteDoctor = async (req, res) => {
     const doctor_id = req.userID;
     try {
-        const doctorDeleted = await pool.query('DELETE FROM doctors WHERE doctor_id = $1', [doctor_id]);
+        const doctorDeleted = await pool.query('DELETE FROM doctors WHERE doctor_id = $1 RETURNING *', [doctor_id]);
         if (doctorDeleted.rowCount === 0) { 
             return res.status(404).json({ error: 'Doctor not found' });
         }
@@ -45,9 +45,12 @@ const deleteDoctor = async (req, res) => {
 // Update a doctor
 const updateDoctor = async (req, res) => {
     const doctor_id = req.userID;
+    if (!doctor_id) {
+        return res.status(400).json({ error: 'Invalid doctor ID' });
+    }
     const updates = req.body;
 
-    const allowedFields = ['full_name', 'email','PhoneNumber'];
+    const allowedFields = ['full_name', 'email','PhoneNumber','specialization'];
     const setClause = [];
     const values = [];
 
