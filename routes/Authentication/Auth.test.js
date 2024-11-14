@@ -1,7 +1,6 @@
 const request = require('supertest');
 const app = require('../../app');
 const { pool } = require('../../models/configrations');
-const Test = require('supertest/lib/test');
 
 const doctorRegisterSuccess = {
     fullname: 'New Doctor',
@@ -14,6 +13,23 @@ const doctorRegisterSuccess = {
     Hospital: 'Example Hospital',
     nationalID: '7925728',
     verification: 'verificationImageUrl',
+    available_days:{
+        "Monday": true,
+        "Tuesday": true,
+        "Wednesday": false,
+        "Thursday": true,
+        "Friday": true,
+        "Saturday": false,
+        "Sunday": false 
+    }, 
+    working_hours: {
+        start: '09:00',
+        end: '17:00'
+    },
+    slot_duration: 30,
+    timezone: 'Africa/Cairo',
+    specialization: 'Cardiology',
+    experience: 10,
     type: 'd'
 };
 
@@ -28,7 +44,8 @@ const patientRegisterSuccess = {
     Address: 'Patient Address',
     nationalID: '240135',
     follow_up: false,
-    type: 'p'
+    type: 'p',
+    insurance_id : '7464'
 };
 const doctorLoginSuccess = {
     email: doctorRegisterSuccess.email,
@@ -66,7 +83,7 @@ describe('Auth Controller', () => {
                 .post('/auth/register')
                 .send(doctorRegisterSuccess);
             console.log('check');
-            expect(response.status).toBe(201); // 201
+            expect(response.status).toBe(201); 
             expect(response.body.message).toContain('Doctor registered successfully');
         });
 
@@ -74,7 +91,7 @@ describe('Auth Controller', () => {
             const response = await request(app)
                 .post('/auth/register')
                 .send(patientRegisterSuccess);
-            expect(response.status).toBe(201); //201
+            expect(response.status).toBe(201);
             expect(response.body.message).toContain('Patient registered successfully');
         });
     });
@@ -84,7 +101,7 @@ describe('Auth Controller', () => {
             const response = await request(app)
                 .post('/auth/login')
                 .send(doctorLoginSuccess);
-            expect(response.status).toBe(200); // 200
+            expect(response.status).toBe(200); 
             expect(response.body).toHaveProperty('token');
         });
 
@@ -100,7 +117,7 @@ describe('Auth Controller', () => {
             const response = await request(app)
                 .post('/auth/login')
                 .send(patientLoginSuccess);
-            expect(response.status).toBe(200); // 200
+            expect(response.status).toBe(200); 
             expect(response.body).toHaveProperty('token');
         });
 

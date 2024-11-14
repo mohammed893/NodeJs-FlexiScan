@@ -2,7 +2,6 @@ const request = require('supertest');
 const app = require('../../app');
 const { pool } = require('../../models/configrations');
 const jwt = require('jsonwebtoken');
-const Test = require('supertest/lib/test');
 
 beforeAll(async () => {
     const values = [
@@ -12,13 +11,19 @@ beforeAll(async () => {
         '1990-01-01',
         'M',
         '123456789',
-        34,
-        'Example Hospital',
+        30, // age can be null
+        'hospitalName', // hospital can be null
         '7925728',
         'verificationImageUrl',
+        JSON.stringify(["Monday", "Wednesday"]),  
+        JSON.stringify({ "start": "09:00", "end": "17:00" }), 
+        30,
+        'Africa/Cairo',
+        'cardiology',
+        10
     ]
-    const result = await pool.query(`INSERT INTO doctors (full_name, email, PASSWORD, date_of_birth, gender, phone_number, age, hospital, national_id, verification_image_url)
-                VALUES ($1, $2, crypt($3, gen_salt('bf')), $4, $5, $6, $7, $8, $9, $10) RETURNING *`, values);
+    const result = await pool.query(`INSERT INTO doctors (full_name, email, PASSWORD, date_of_birth, gender, phone_number, age, hospital, national_id, verification_image_url, available_days, working_hours, slot_duration, timezone, specialization, experience)
+            VALUES ($1, $2 ,crypt($3, gen_salt('bf')), $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING *`, values);
     doctorId = result.rows[0].doctor_id;
     token = jwt.sign({ id: doctorId }, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '1h' });
     console.log('Generated Token: ', token)

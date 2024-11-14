@@ -1,5 +1,5 @@
 const { Pool } = require('pg');
-let database = 'physicaltheraby';
+let database = 'physicaltherapydb';
 
 const pool = new Pool({
   user: 'postgres',
