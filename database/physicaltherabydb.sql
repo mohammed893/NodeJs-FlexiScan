@@ -3,7 +3,6 @@
 --
 
 -- Dumped from database version 16.4
-
 -- Dumped by pg_dump version 16.0
 
 SET statement_timeout = 0;
@@ -42,7 +41,6 @@ SET row_security = off;
 -- Name: pgcrypto; Type: EXTENSION; Schema: -; Owner: -
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA public;
-
 
 --
 -- Name: public; Type: SCHEMA; Schema: -; Owner: pg_database_owner
@@ -596,19 +594,19 @@ CREATE TABLE public.doctors (
     email text NOT NULL,
     password text NOT NULL,
     date_of_birth date,
-    gender character varying(20) NOT NULL,
+    gender character varying(20),
     phone_number text NOT NULL,
     age integer,
     hospital text,
     national_id bigint NOT NULL,
-    verification_image_url text NOT NULL,
+    verification_image_url text,
     doctor_id integer DEFAULT nextval('public.doctors_doctor_id_seq'::regclass) NOT NULL,
-    timezone character varying(50) NOT NULL,
-    specialization character varying(255) NOT NULL,
+    timezone character varying(50),
+    specialization character varying(255),
     experience integer,
-    slot_duration interval NOT NULL,
-    working_hours jsonb NOT NULL,
-    available_days jsonb NOT NULL,
+    slot_duration interval,
+    working_hours jsonb,
+    available_days jsonb,
     CONSTRAINT experience_check CHECK ((experience >= 0))
 );
 

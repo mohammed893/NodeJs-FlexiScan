@@ -3,17 +3,25 @@ const app = require('../../app');
 const { pool } = require('../../models/configrations');
 
 const doctorRegisterSuccess = {
-    full_name: 'New Doctor',
+    fullname: 'New Doctor',
     email: 'newdoctor@example.com',
     password: 'newPassword',
-    date_of_birth: '1990-01-01',
-    gender: 'M',
-    phone_number: '123456789',
-    age: 34,
-    hospital: 'Example Hospital',
-    national_id: '7925728',
-    verification_image_url: 'verificationImageUrl',
-    available_days: ["Monday", "Wednesday"], 
+    Date_of_birth: '1990-01-01',
+    Gender: 'M',
+    PhoneNumber: '123456789',
+    Age: 34,
+    Hospital: 'Example Hospital',
+    nationalID: '7925728',
+    verification: 'verificationImageUrl',
+    available_days:{
+        "Monday": true,
+        "Tuesday": true,
+        "Wednesday": false,
+        "Thursday": true,
+        "Friday": true,
+        "Saturday": false,
+        "Sunday": false 
+    }, 
     working_hours: {
         start: '09:00',
         end: '17:00'
