@@ -3,7 +3,6 @@
 --
 
 -- Dumped from database version 16.4
-
 -- Dumped by pg_dump version 16.0
 
 SET statement_timeout = 0;
@@ -466,37 +465,22 @@ CREATE SEQUENCE public.appointments_appointment_id_seq
 ALTER SEQUENCE public.appointments_appointment_id_seq OWNER TO postgres;
 
 --
--- Name: billings_billing_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
---
-
-CREATE SEQUENCE public.billings_billing_id_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
-ALTER SEQUENCE public.billings_billing_id_seq OWNER TO postgres;
-
-SET default_table_access_method = heap;
-
---
 -- Name: billings; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.billings (
-    billing_id integer DEFAULT nextval('public.billings_billing_id_seq'::regclass) NOT NULL,
     patient_id integer NOT NULL,
     doctor_id integer NOT NULL,
-    total_amount numeric(10,2) NOT NULL,
-    billing_date timestamp with time zone NOT NULL,
-    payment_status public.payment_status_enum NOT NULL,
+    price numeric(10,2) NOT NULL,
+    billing_date date DEFAULT CURRENT_DATE NOT NULL,
+    payment_date date,
+    payment_status public.payment_status_enum DEFAULT 'pending'::public.payment_status_enum NOT NULL,
     payment_method public.payment_method_enum NOT NULL,
     notes character varying(255),
-    appointment_date date NOT NULL
-);
+    paymentkey character varying,
+    order_id character varying
+)
+PARTITION BY RANGE (billing_date);
 
 
 ALTER TABLE public.billings OWNER TO postgres;
@@ -515,6 +499,8 @@ CREATE SEQUENCE public.bookinghistory_history_id_seq
 
 
 ALTER SEQUENCE public.bookinghistory_history_id_seq OWNER TO postgres;
+
+SET default_table_access_method = heap;
 
 --
 -- Name: booking_history; Type: TABLE; Schema: public; Owner: postgres
@@ -596,19 +582,19 @@ CREATE TABLE public.doctors (
     email text NOT NULL,
     password text NOT NULL,
     date_of_birth date,
-    gender character varying(20) NOT NULL,
+    gender character varying(20),
     phone_number text NOT NULL,
     age integer,
     hospital text,
     national_id bigint NOT NULL,
-    verification_image_url text NOT NULL,
+    verification_image_url text,
     doctor_id integer DEFAULT nextval('public.doctors_doctor_id_seq'::regclass) NOT NULL,
-    timezone character varying(50) NOT NULL,
-    specialization character varying(255) NOT NULL,
+    timezone character varying(50),
+    specialization character varying(255),
     experience integer,
-    slot_duration interval NOT NULL,
-    working_hours jsonb NOT NULL,
-    available_days jsonb NOT NULL,
+    slot_duration interval,
+    working_hours jsonb,
+    available_days jsonb,
     CONSTRAINT experience_check CHECK ((experience >= 0))
 );
 
@@ -739,14 +725,6 @@ ALTER TABLE ONLY public.patients
 
 
 --
--- Name: billings pk_billing; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.billings
-    ADD CONSTRAINT pk_billing PRIMARY KEY (billing_id);
-
-
---
 -- Name: time_slots time_slots_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -760,6 +738,14 @@ ALTER TABLE ONLY public.time_slots
 
 ALTER TABLE ONLY public.appointments
     ADD CONSTRAINT unique_appointment UNIQUE (doctor_id, patient_id, slot_id, appointment_date);
+
+
+--
+-- Name: billings unique_billing; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.billings
+    ADD CONSTRAINT unique_billing UNIQUE (paymentkey, order_id, billing_date);
 
 
 --
@@ -852,7 +838,7 @@ CREATE INDEX idx_time_slots ON public.time_slots USING btree (doctor_id, slot_st
 -- Name: payment_status_idx; Type: INDEX; Schema: public; Owner: postgres
 --
 
-CREATE INDEX payment_status_idx ON public.billings USING btree (payment_status);
+CREATE INDEX payment_status_idx ON ONLY public.billings USING btree (payment_status);
 
 
 --
@@ -877,6 +863,22 @@ ALTER TABLE public.appointments
 
 ALTER TABLE public.appointments
     ADD CONSTRAINT appointments_slot_id_fkey FOREIGN KEY (slot_id) REFERENCES public.time_slots(time_slot_id);
+
+
+--
+-- Name: billings billings_doctor_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE public.billings
+    ADD CONSTRAINT billings_doctor_id_fkey FOREIGN KEY (doctor_id) REFERENCES public.doctors(doctor_id) ON DELETE CASCADE;
+
+
+--
+-- Name: billings billings_patient_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE public.billings
+    ADD CONSTRAINT billings_patient_id_fkey FOREIGN KEY (patient_id) REFERENCES public.patients(patient_id) ON DELETE CASCADE;
 
 
 --
@@ -909,22 +911,6 @@ ALTER TABLE ONLY public.consultation_records
 
 ALTER TABLE ONLY public.consultation_records
     ADD CONSTRAINT consultation_records_patient_id_fkey FOREIGN KEY (patient_id) REFERENCES public.patients(patient_id) ON DELETE CASCADE;
-
-
---
--- Name: billings fk_doctor; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.billings
-    ADD CONSTRAINT fk_doctor FOREIGN KEY (doctor_id) REFERENCES public.doctors(doctor_id) ON DELETE CASCADE;
-
-
---
--- Name: billings fk_patient; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.billings
-    ADD CONSTRAINT fk_patient FOREIGN KEY (patient_id) REFERENCES public.patients(patient_id) ON DELETE CASCADE;
 
 
 --
