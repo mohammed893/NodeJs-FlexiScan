@@ -20,7 +20,7 @@ SET row_security = off;
 -- Name: physicaltherapydb; Type: DATABASE; Schema: -; Owner: postgres
 --
 
-CREATE DATABASE physicaltherapydb WITH TEMPLATE = template0 ENCODING = 'UTF8' LOCALE_PROVIDER = libc LOCALE = 'English_United States.1252';
+CREATE DATABASE physicaltherapydb WITH TEMPLATE = template0 ENCODING = 'UTF8' LOCALE = 'English_United States.1252';
 
 
 ALTER DATABASE physicaltherapydb OWNER TO postgres;
@@ -45,6 +45,7 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA public;
 --
 -- Name: public; Type: SCHEMA; Schema: -; Owner: pg_database_owner
 --
+
 
 
 CREATE SCHEMA public;
@@ -141,37 +142,102 @@ CREATE TYPE public.weekdays AS ENUM (
 ALTER TYPE public.weekdays OWNER TO postgres;
 
 --
--- Name: addnewbilling(integer, integer, integer, date, numeric, character varying, character varying, character varying); Type: FUNCTION; Schema: public; Owner: postgres
+-- Name: addnewbilling(integer, integer, integer, date, character varying, numeric, character varying, character varying); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
-CREATE FUNCTION public.addnewbilling(p_patient_id integer, p_doctor_id integer, p_slot_id integer, p_appointment_date date, p_price numeric, p_paymentkey character varying, p_order_id character varying, p_consultation_type character varying) RETURNS boolean
+CREATE FUNCTION public.addnewbilling(p_patient_id integer, p_doctor_id integer, p_slot_id integer, p_appointment_date date, p_consultation_type character varying, p_price numeric, p_paymentkey character varying, p_order_id character varying) RETURNS boolean
     LANGUAGE plpgsql
     AS $$
 DECLARE
-    booking_success BOOLEAN;
-    appointment_paid BOOLEAN;
+    slot_exists BOOLEAN;
+    appointment_exists BOOLEAN;
+    overlapping_appointment BOOLEAN;
+    v_slot_start_time TIME;
+    v_slot_end_time TIME;
 BEGIN
-    
-    -- Checking if an existing appointment for the same slot is paid
+    -- Lock the slot to ensure it's not booked by another transaction and retrieve start and end times
+    SELECT EXISTS (
+        SELECT 1
+        FROM time_slots
+        WHERE time_slot_id = p_slot_id 
+          AND doctor_id = p_doctor_id
+        FOR UPDATE
+    ) INTO slot_exists;
+
+    -- If the slot does not exist, exit early
+    IF NOT slot_exists THEN
+        RETURN FALSE;
+    END IF;
+
+    -- Getting slot start and end times
+    SELECT slot_start_time, slot_end_time
+    INTO v_slot_start_time, v_slot_end_time
+    FROM time_slots
+    WHERE time_slot_id = p_slot_id;
+
+    -- Check if there is an existing appointment for the selected slot, date, and status
     SELECT EXISTS (
         SELECT 1
         FROM appointments
         WHERE slot_id = p_slot_id
           AND appointment_date = p_appointment_date
-          AND doctor_id = p_doctor_id
-          AND patient_id = p_patient_id
           AND status = 'scheduled'
           AND paid = TRUE
-    ) INTO appointment_paid;
-   
-    --If a paid appointment existi, dont book an appointment
-    IF appointment_paid THEN
-        RETURN FALSE;
-    END IF;
-    --Else book an appointment
-    booking_success := public.book_appointment(p_patient_id, p_doctor_id, p_slot_id, p_appointment_date, p_consultation_type);
-    
-    IF booking_success THEN -- the booking succeded
+    ) INTO appointment_exists;
+
+    -- Check if the patient has any overlapping appointments on the same day
+    SELECT EXISTS (
+        SELECT 1
+        FROM appointments a
+        JOIN time_slots ts ON a.slot_id = ts.time_slot_id
+        WHERE a.patient_id = p_patient_id
+          AND a.appointment_date = p_appointment_date
+          AND a.status = 'scheduled'
+          AND (
+              ts.slot_start_time < v_slot_end_time
+              AND ts.slot_end_time > v_slot_start_time
+          )
+    ) INTO overlapping_appointment;
+
+    -- Proceed only if there is no existing appointment and no time overlap
+    IF NOT appointment_exists AND NOT overlapping_appointment AND p_appointment_date > NOW()::DATE THEN
+        -- Insert a new appointment into the appointments table
+        INSERT INTO appointments (
+            doctor_id, patient_id, slot_id, appointment_date, status, created_at, updated_at, consultation_type, paid
+        )
+        VALUES (
+            p_doctor_id,
+            p_patient_id,
+            p_slot_id,
+            p_appointment_date,
+            'scheduled',
+            NOW(),
+            NOW(),
+            p_consultation_type::consultation_type_enum,
+            FALSE
+        );
+
+        -- Log the booking action in booking_history table
+        INSERT INTO booking_history (
+            doctor_id,
+            patient_id,
+            appointment_date,
+            old_start_time,
+            old_end_time,
+            action_type,
+            action_date
+        )
+        VALUES (
+            p_doctor_id,
+            p_patient_id,
+            p_appointment_date,
+            v_slot_start_time,
+            v_slot_end_time,
+            'booking',
+            CURRENT_TIMESTAMP
+        );
+        
+        -- Add the billing into the billings table
         INSERT INTO billings (
             patient_id,
             doctor_id,
@@ -187,11 +253,11 @@ BEGIN
             p_order_id
         );
         
-        RETURN TRUE;
-    ELSE -- The booking failed
-        RETURN FALSE;
+        
+        RETURN TRUE; -- Booking successful
+    ELSE
+        RETURN FALSE; -- Slot is already reserved or overlaped or There is an existing appointment 
     END IF;
-    
 
 EXCEPTION
     WHEN OTHERS THEN
@@ -201,7 +267,7 @@ END;
 $$;
 
 
-ALTER FUNCTION public.addnewbilling(p_patient_id integer, p_doctor_id integer, p_slot_id integer, p_appointment_date date, p_price numeric, p_paymentkey character varying, p_order_id character varying, p_consultation_type character varying) OWNER TO postgres;
+ALTER FUNCTION public.addnewbilling(p_patient_id integer, p_doctor_id integer, p_slot_id integer, p_appointment_date date, p_consultation_type character varying, p_price numeric, p_paymentkey character varying, p_order_id character varying) OWNER TO postgres;
 
 --
 -- Name: book_appointment(integer, integer, integer, date, character varying); Type: FUNCTION; Schema: public; Owner: postgres
