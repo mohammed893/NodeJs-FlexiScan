@@ -20,7 +20,7 @@ SET row_security = off;
 -- Name: physicaltherapydb; Type: DATABASE; Schema: -; Owner: postgres
 --
 
-CREATE DATABASE physicaltherapydb WITH TEMPLATE = template0 ENCODING = 'UTF8' LOCALE = 'English_United States.1252';
+CREATE DATABASE physicaltherapydb WITH TEMPLATE = template0 ENCODING = 'UTF8' LOCALE_PROVIDER = libc LOCALE = 'English_United States.1252';
 
 
 ALTER DATABASE physicaltherapydb OWNER TO postgres;
@@ -42,10 +42,10 @@ SET row_security = off;
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA public;
 
-
 --
 -- Name: public; Type: SCHEMA; Schema: -; Owner: pg_database_owner
 --
+
 
 CREATE SCHEMA public;
 
@@ -141,10 +141,73 @@ CREATE TYPE public.weekdays AS ENUM (
 ALTER TYPE public.weekdays OWNER TO postgres;
 
 --
--- Name: book_appointment(integer, integer, integer, date); Type: FUNCTION; Schema: public; Owner: postgres
+-- Name: addnewbilling(integer, integer, integer, date, numeric, character varying, character varying, character varying); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
-CREATE FUNCTION public.book_appointment(p_patient_id integer, p_doctor_id integer, p_slot_id integer, p_appointment_date date) RETURNS boolean
+CREATE FUNCTION public.addnewbilling(p_patient_id integer, p_doctor_id integer, p_slot_id integer, p_appointment_date date, p_price numeric, p_paymentkey character varying, p_order_id character varying, p_consultation_type character varying) RETURNS boolean
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    booking_success BOOLEAN;
+    appointment_paid BOOLEAN;
+BEGIN
+    
+    -- Checking if an existing appointment for the same slot is paid
+    SELECT EXISTS (
+        SELECT 1
+        FROM appointments
+        WHERE slot_id = p_slot_id
+          AND appointment_date = p_appointment_date
+          AND doctor_id = p_doctor_id
+          AND patient_id = p_patient_id
+          AND status = 'scheduled'
+          AND paid = TRUE
+    ) INTO appointment_paid;
+   
+    --If a paid appointment existi, dont book an appointment
+    IF appointment_paid THEN
+        RETURN FALSE;
+    END IF;
+    --Else book an appointment
+    booking_success := public.book_appointment(p_patient_id, p_doctor_id, p_slot_id, p_appointment_date, p_consultation_type);
+    
+    IF booking_success THEN -- the booking succeded
+        INSERT INTO billings (
+            patient_id,
+            doctor_id,
+            price,
+            paymentKey,
+            order_id
+        )
+        VALUES (
+            p_patient_id,
+            p_doctor_id,
+            p_price,
+            p_paymentKey,
+            p_order_id
+        );
+        
+        RETURN TRUE;
+    ELSE -- The booking failed
+        RETURN FALSE;
+    END IF;
+    
+
+EXCEPTION
+    WHEN OTHERS THEN
+        RAISE NOTICE 'An error occurred: %', SQLERRM;
+        RETURN FALSE; -- Indicate booking failed due to an error
+END;
+$$;
+
+
+ALTER FUNCTION public.addnewbilling(p_patient_id integer, p_doctor_id integer, p_slot_id integer, p_appointment_date date, p_price numeric, p_paymentkey character varying, p_order_id character varying, p_consultation_type character varying) OWNER TO postgres;
+
+--
+-- Name: book_appointment(integer, integer, integer, date, character varying); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.book_appointment(p_patient_id integer, p_doctor_id integer, p_slot_id integer, p_appointment_date date, p_consultation_type character varying) RETURNS boolean
     LANGUAGE plpgsql
     AS $$
 DECLARE
@@ -201,7 +264,7 @@ BEGIN
     IF NOT appointment_exists AND NOT overlapping_appointment AND p_appointment_date > NOW()::DATE THEN
         -- Insert a new appointment into the appointments table
         INSERT INTO appointments (
-            doctor_id, patient_id, slot_id, appointment_date, status, created_at, updated_at
+            doctor_id, patient_id, slot_id, appointment_date, status, created_at, updated_at, consultation_type, paid
         )
         VALUES (
             p_doctor_id,
@@ -210,7 +273,9 @@ BEGIN
             p_appointment_date,
             'scheduled',
             NOW(),
-            NOW()
+            NOW(),
+            p_consultation_type::consultation_type_enum,
+            FALSE
         );
 
         -- Log the booking action in booking_history
@@ -245,7 +310,7 @@ END;
 $$;
 
 
-ALTER FUNCTION public.book_appointment(p_patient_id integer, p_doctor_id integer, p_slot_id integer, p_appointment_date date) OWNER TO postgres;
+ALTER FUNCTION public.book_appointment(p_patient_id integer, p_doctor_id integer, p_slot_id integer, p_appointment_date date, p_consultation_type character varying) OWNER TO postgres;
 
 --
 -- Name: cancel_appointment(integer, integer, integer, date, text); Type: FUNCTION; Schema: public; Owner: postgres
@@ -442,6 +507,9 @@ CREATE TABLE public.appointments (
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now(),
     consultation_type public.consultation_type_enum NOT NULL,
+    token character varying,
+    "channelName" character varying,
+    paid boolean DEFAULT false NOT NULL,
     CONSTRAINT cancellation_data_check CHECK ((((status = 'canceled'::public.appointment_status) AND (cancellation_reason IS NOT NULL) AND (cancellation_timestamp IS NOT NULL)) OR ((status <> 'canceled'::public.appointment_status) AND (cancellation_reason IS NULL) AND (cancellation_timestamp IS NULL))))
 )
 PARTITION BY RANGE (appointment_date);
@@ -475,7 +543,7 @@ CREATE TABLE public.billings (
     billing_date date DEFAULT CURRENT_DATE NOT NULL,
     payment_date date,
     payment_status public.payment_status_enum DEFAULT 'pending'::public.payment_status_enum NOT NULL,
-    payment_method public.payment_method_enum NOT NULL,
+    payment_method public.payment_method_enum,
     notes character varying(255),
     paymentkey character varying,
     order_id character varying
@@ -737,7 +805,7 @@ ALTER TABLE ONLY public.time_slots
 --
 
 ALTER TABLE ONLY public.appointments
-    ADD CONSTRAINT unique_appointment UNIQUE (doctor_id, patient_id, slot_id, appointment_date);
+    ADD CONSTRAINT unique_appointment UNIQUE (doctor_id, patient_id, slot_id, appointment_date, token);
 
 
 --
