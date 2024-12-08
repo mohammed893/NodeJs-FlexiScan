@@ -46,8 +46,6 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA public;
 -- Name: public; Type: SCHEMA; Schema: -; Owner: pg_database_owner
 --
 
-
-
 CREATE SCHEMA public;
 
 
@@ -105,7 +103,8 @@ ALTER TYPE public.consultation_type_enum OWNER TO postgres;
 CREATE TYPE public.payment_method_enum AS ENUM (
     'credit card',
     'cash',
-    'fawry'
+    'fawry',
+    'online payment'
 );
 
 
@@ -203,7 +202,7 @@ BEGIN
     IF NOT appointment_exists AND NOT overlapping_appointment AND p_appointment_date > NOW()::DATE THEN
         -- Insert a new appointment into the appointments table
         INSERT INTO appointments (
-            doctor_id, patient_id, slot_id, appointment_date, status, created_at, updated_at, consultation_type, paid
+            doctor_id, patient_id, slot_id, appointment_date, status, created_at, consultation_type, paid
         )
         VALUES (
             p_doctor_id,
@@ -211,7 +210,6 @@ BEGIN
             p_slot_id,
             p_appointment_date,
             'scheduled',
-            NOW(),
             NOW(),
             p_consultation_type::consultation_type_enum,
             FALSE
@@ -243,14 +241,16 @@ BEGIN
             doctor_id,
             price,
             paymentKey,
-            order_id
+            order_id,
+            appointment_date
         )
         VALUES (
             p_patient_id,
             p_doctor_id,
             p_price,
             p_paymentKey,
-            p_order_id
+            p_order_id,
+            p_appointment_date
         );
         
         
@@ -382,13 +382,14 @@ ALTER FUNCTION public.book_appointment(p_patient_id integer, p_doctor_id integer
 -- Name: cancel_appointment(integer, integer, integer, date, text); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
-CREATE FUNCTION public.cancel_appointment(p_slot_id integer, p_doctor_id integer, p_patient_id integer, p_appointment_date date, p_cancellation_reason text) RETURNS boolean
+CREATE FUNCTION public.cancel_appointment(p_slot_id integer, p_doctor_id integer, p_patient_id integer, p_appointment_date date, p_cancellation_reason text) RETURNS character varying
     LANGUAGE plpgsql
     AS $$
 DECLARE 
     appointment_exists BOOLEAN;
     v_slot_start_time TIME;
     v_slot_end_time TIME;
+    order_id VARCHAR;
 BEGIN
     -- Check if the appointment exists
     SELECT EXISTS (
@@ -399,12 +400,11 @@ BEGIN
           AND a.slot_id = p_slot_id
           AND a.appointment_date = p_appointment_date
           AND a.status = 'scheduled'
-        FOR UPDATE
     ) INTO appointment_exists;
     
     -- If the appointment doesn't exist, return FALSE
     IF NOT appointment_exists THEN
-        RETURN FALSE;
+        RETURN '';
     END IF;
     
     -- Getting the slot start and end times
@@ -423,6 +423,20 @@ BEGIN
       AND patient_id = p_patient_id
       AND slot_id = p_slot_id
       AND appointment_date = p_appointment_date;
+      
+    -- Getting the order_id of the canceled appointment
+    SELECT b.order_id
+    INTO order_id
+        FROM billings AS b
+        JOIN appointments AS a 
+        ON a.appointment_date = b.appointment_date
+        AND a.doctor_id = b.doctor_id 
+        AND a.patient_id = b.patient_id
+        WHERE a.slot_id = p_slot_id 
+          AND a.appointment_date = p_appointment_date
+          AND a.doctor_id = p_doctor_id
+          AND a.patient_id = p_patient_id
+          AND a.paid = FALSE;
     
     -- Log the cancellation in booking_history
     INSERT INTO booking_history (
@@ -446,7 +460,7 @@ BEGIN
         p_cancellation_reason
     );
     
-    RETURN TRUE;
+    RETURN order_id;
 END;
 $$;
 
@@ -510,8 +524,7 @@ BEGIN
     -- Update the appointment with the new slot and date
     UPDATE appointments
     SET slot_id = p_new_slot_id,
-        appointment_date = p_new_date,
-        updated_at = CURRENT_TIMESTAMP
+        appointment_date = p_new_date
     WHERE doctor_id = p_doctor_id
       AND patient_id = p_patient_id
       AND appointment_date = p_old_date
@@ -555,6 +568,102 @@ $$;
 
 ALTER FUNCTION public.reschedule_appointment(p_old_slot_id integer, p_new_slot_id integer, p_doctor_id integer, p_patient_id integer, p_old_date date, p_new_date date) OWNER TO postgres;
 
+--
+-- Name: updatebilling(character varying, character varying, character varying, character varying); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.updatebilling(p_paymentkey character varying, p_order_id character varying, p_newstatus character varying, p_payment_method character varying DEFAULT 'online payment'::character varying) RETURNS character varying[]
+    LANGUAGE plpgsql
+    AS $$
+DECLARE 
+    billingFound BOOLEAN;
+    deletedOrderIds VARCHAR[];
+    doctorID INT;
+    patientID INT;
+    slotID INT;
+    appointmentDate DATE;
+BEGIN
+    -- Check if a billing exists with the given order_id, paymentKey, and 'pending' status
+    SELECT EXISTS(
+        SELECT 1 
+        FROM billings
+        WHERE order_id = p_order_id
+          AND paymentKey = p_paymentKey
+          AND payment_status = 'pending'
+    ) INTO billingFound;
+    
+    -- If a matching billing is found
+    IF billingFound THEN
+        -- Retrieve doctor_id, patient_id, and appointment_date
+        SELECT doctor_id, patient_id, appointment_date
+        INTO doctorID, patientID, appointmentDate
+        FROM billings
+        WHERE order_id = p_order_id 
+          AND paymentKey = p_paymentKey;
+        
+        -- Retrieve slot_id from appointments
+        SELECT slot_id
+        INTO slotID
+        FROM appointments
+        WHERE doctor_id = doctorID
+          AND patient_id = patientID
+          AND appointment_date = appointmentDate;
+        
+        -- Update the billing to mark it as 'paid'
+        UPDATE billings 
+        SET payment_status = 'paid',
+            payment_method = p_payment_method,
+            payment_date = NOW()
+        WHERE order_id = p_order_id 
+          AND paymentKey = p_paymentKey;
+          
+        -- Update the appointment to mark it as paid
+        UPDATE appointments 
+        SET paid = TRUE
+        WHERE doctor_id = doctorID 
+          AND patient_id = patientID
+          AND appointment_date = appointmentDate;
+        
+        -- Retrieve order_ids of unpaid appointments for the same slot
+        SELECT array_agg(b.order_id)
+        INTO deletedOrderIds
+        FROM billings AS b
+        JOIN appointments AS a 
+        ON a.appointment_date = b.appointment_date
+        AND a.doctor_id = b.doctor_id 
+        AND a.patient_id = b.patient_id
+        WHERE a.slot_id = slotID 
+          AND a.appointment_date = appointmentDate
+          AND a.doctor_id = doctorID
+          AND a.paid = FALSE;
+
+        
+        -- Delete unpaid appointments for the same slot
+        DELETE FROM appointments
+        WHERE paid = FALSE
+          AND doctor_id = doctorID
+          AND appointment_date = appointmentDate
+          AND slot_id = slotID;
+    END IF;
+    
+    -- Return empty array if no orders were deleted
+    IF deletedOrderIds IS NULL THEN 
+        RETURN '{}';
+    END IF;
+
+    -- Return the array of deleted unpaid appointments
+    RETURN deletedOrderIds;
+
+EXCEPTION
+    WHEN OTHERS THEN
+        RAISE NOTICE 'An error occurred: %', SQLERRM;
+        RETURN '{}'; -- Return an empty array in case of an error
+END;
+$$;
+
+
+ALTER FUNCTION public.updatebilling(p_paymentkey character varying, p_order_id character varying, p_newstatus character varying, p_payment_method character varying) OWNER TO postgres;
+
 SET default_tablespace = '';
 
 --
@@ -571,7 +680,6 @@ CREATE TABLE public.appointments (
     consultation_notes text,
     appointment_date date NOT NULL,
     created_at timestamp with time zone DEFAULT now(),
-    updated_at timestamp with time zone DEFAULT now(),
     consultation_type public.consultation_type_enum NOT NULL,
     token character varying,
     "channelName" character varying,
@@ -612,7 +720,8 @@ CREATE TABLE public.billings (
     payment_method public.payment_method_enum,
     notes character varying(255),
     paymentkey character varying,
-    order_id character varying
+    order_id character varying,
+    appointment_date date NOT NULL
 )
 PARTITION BY RANGE (billing_date);
 
@@ -879,7 +988,7 @@ ALTER TABLE ONLY public.appointments
 --
 
 ALTER TABLE ONLY public.billings
-    ADD CONSTRAINT unique_billing UNIQUE (paymentkey, order_id, billing_date);
+    ADD CONSTRAINT unique_billing UNIQUE (paymentkey, order_id, billing_date, appointment_date);
 
 
 --
