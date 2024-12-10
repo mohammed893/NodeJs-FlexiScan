@@ -38,10 +38,6 @@ SET xmloption = content;
 SET client_min_messages = warning;
 SET row_security = off;
 
--- Name: pgcrypto; Type: EXTENSION; Schema: -; Owner: -
-
-CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA public;
-
 --
 -- Name: public; Type: SCHEMA; Schema: -; Owner: pg_database_owner
 --
@@ -468,6 +464,218 @@ $$;
 ALTER FUNCTION public.cancel_appointment(p_slot_id integer, p_doctor_id integer, p_patient_id integer, p_appointment_date date, p_cancellation_reason text) OWNER TO postgres;
 
 --
+-- Name: generateslots(integer, jsonb, interval, time without time zone, time without time zone, boolean); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.generateslots(p_doctor_id integer, p_working_days jsonb, p_slot_duration interval, p_start_time time without time zone, p_end_time time without time zone, p_force boolean) RETURNS TABLE(r_doctor_id integer, r_patient_id integer, r_appointment_date date, r_slot_id integer, r_order_ids character varying[])
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    hasSlots BOOLEAN;
+    doctorExists BOOLEAN;
+BEGIN
+    -- checking if the doctor exists
+    SELECT EXISTS (
+        SELECT 1 
+        FROM doctors d
+        WHERE d.doctor_id = p_doctor_id
+    ) INTO doctorExists;
+
+    IF NOT doctorExists THEN
+        RAISE NOTICE 'Doctor with ID % does not exist', p_doctor_id;
+        RETURN QUERY 
+        SELECT * FROM (
+            SELECT 
+                NULL::INT AS r_doctor_id, 
+                NULL::INT AS r_patient_id, 
+                NULL::DATE AS r_appointment_date, 
+                NULL::INT AS r_slot_id, 
+                NULL::VARCHAR[] AS r_order_ids
+        ) AS empty_table LIMIT 0;
+        RETURN;
+    END IF;
+
+    --check if the doctor already has slots
+    SELECT EXISTS (
+        SELECT 1 
+        FROM time_slots ts
+        WHERE ts.doctor_id = p_doctor_id
+    ) INTO hasSlots;
+
+    IF hasSlots THEN
+        IF p_force THEN -- the appointments will be deleted
+        
+            -- increasing patient's balance for paid appointments
+            UPDATE patients p
+            SET balance = p.balance + subquery.total_amount
+            FROM (
+                SELECT 
+                    a.patient_id, 
+                    SUM(b.price) AS total_amount 
+                FROM appointments a
+                JOIN billings b 
+                    ON a.doctor_id = b.doctor_id 
+                    AND a.patient_id = b.patient_id 
+                    AND a.appointment_date = b.appointment_date
+                WHERE a.doctor_id = p_doctor_id
+                  AND a.appointment_date > CURRENT_DATE
+                  AND a.paid = TRUE
+                GROUP BY a.patient_id
+            ) subquery
+            WHERE p.patient_id = subquery.patient_id;
+        
+            -- returning paid appointments and deleting all appointments for this doctor
+            RAISE NOTICE 'Doctor % has slots and force is TRUE. Returning and deleting appointments.', p_doctor_id;
+            RETURN QUERY 
+            SELECT
+                a.doctor_id AS r_doctor_id,
+                a.patient_id AS r_patient_id,
+                a.appointment_date AS r_appointment_date,
+                a.slot_id AS r_slot_id,
+                ARRAY_AGG(b.order_id) AS r_order_ids
+            FROM appointments a
+            JOIN billings b 
+                ON a.doctor_id = b.doctor_id 
+                AND a.patient_id = b.patient_id 
+                AND a.appointment_date = b.appointment_date
+            WHERE a.doctor_id = p_doctor_id
+              AND a.appointment_date > CURRENT_DATE
+              AND a.paid = TRUE
+            GROUP BY a.doctor_id, a.patient_id, a.appointment_date, a.slot_id
+            ORDER BY a.appointment_date;
+            
+            --deleting the future appointments for this doctor
+            DELETE FROM appointments 
+            WHERE doctor_id = p_doctor_id 
+              AND appointment_date > NOW();
+              
+            -- generating the slots for the doctor  
+            DELETE FROM time_slots
+            WHERE doctor_id = p_doctor_id;
+            PERFORM makeslots(p_doctor_id, p_working_days, p_slot_duration, p_start_time, p_end_time);
+        ELSE
+            -- returning but not deleting future appointments for this doctor 
+            RAISE NOTICE 'Doctor % has slots but force is FALSE. Returning appointments without deleting and generating slots.', p_doctor_id;
+            RETURN QUERY 
+            SELECT
+                a.doctor_id AS r_doctor_id,
+                a.patient_id AS r_patient_id,
+                a.appointment_date AS r_appointment_date,
+                a.slot_id AS r_slot_id,
+                ARRAY_AGG(b.order_id) AS r_order_ids
+            FROM appointments a
+            JOIN billings b 
+                ON a.doctor_id = b.doctor_id 
+                AND a.patient_id = b.patient_id 
+                AND a.appointment_date = b.appointment_date
+            WHERE a.doctor_id = p_doctor_id
+              AND a.appointment_date > CURRENT_DATE
+            GROUP BY a.doctor_id, a.patient_id, a.appointment_date, a.slot_id
+            ORDER BY a.appointment_date;
+            
+             -- Generating slots for the doctor
+            DELETE FROM time_slots
+            WHERE doctor_id = p_doctor_id;
+            PERFORM makeslots(p_doctor_id, p_working_days, p_slot_duration, p_start_time, p_end_time);
+        END IF;
+
+    ELSE -- the doctor doesnt have slots
+        -- Generating slots for the doctor if none exist
+        RAISE NOTICE 'Doctor % does not have slots. Generating new slots.', p_doctor_id;
+        PERFORM makeslots(p_doctor_id, p_working_days, p_slot_duration, p_start_time, p_end_time);
+        
+        RAISE NOTICE 'Slots generated for doctor %', p_doctor_id;
+        RETURN QUERY 
+        SELECT * FROM (
+            SELECT 
+                NULL::INT AS r_doctor_id, 
+                NULL::INT AS r_patient_id, 
+                NULL::DATE AS r_appointment_date, 
+                NULL::INT AS r_slot_id, 
+                NULL::VARCHAR[] AS r_order_ids
+        ) AS empty_table LIMIT 0;
+    END IF;
+
+    -- in case no conditions are met returning an empty table
+    RAISE NOTICE 'The checks failed for doctor %', p_doctor_id;
+    RETURN QUERY 
+    SELECT * FROM (
+        SELECT 
+            NULL::INT AS r_doctor_id, 
+            NULL::INT AS r_patient_id, 
+            NULL::DATE AS r_appointment_date, 
+            NULL::INT AS r_slot_id, 
+            NULL::VARCHAR[] AS r_order_ids
+    ) AS empty_table LIMIT 0;
+
+EXCEPTION
+    WHEN OTHERS THEN
+        RAISE NOTICE 'An error occurred for doctor %: %', p_doctor_id, SQLERRM;
+        RETURN QUERY 
+        SELECT * FROM (
+            SELECT 
+                NULL::INT AS r_doctor_id, 
+                NULL::INT AS r_patient_id, 
+                NULL::DATE AS r_appointment_date, 
+                NULL::INT AS r_slot_id, 
+                NULL::VARCHAR[] AS r_order_ids
+        ) AS empty_table LIMIT 0;
+END;
+$$;
+
+
+ALTER FUNCTION public.generateslots(p_doctor_id integer, p_working_days jsonb, p_slot_duration interval, p_start_time time without time zone, p_end_time time without time zone, p_force boolean) OWNER TO postgres;
+
+--
+-- Name: makeslots(integer, jsonb, interval, time without time zone, time without time zone); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.makeslots(p_doctor_id integer, p_working_days jsonb, p_slot_duration interval, p_start_time time without time zone, p_end_time time without time zone) RETURNS void
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    current_start TIME;
+    current_end TIME;
+    working_hours_json JSONB;
+BEGIN
+    current_start := p_start_time;
+        
+    WHILE current_start < p_end_time LOOP
+        
+        current_end := current_start + p_slot_duration;
+            
+        IF current_end > p_end_time THEN
+            EXIT;
+        END IF;
+            
+        INSERT INTO time_slots (doctor_id, slot_start_time, slot_end_time, is_available, available_days, slot_duration) 
+        VALUES (p_doctor_id, current_start, current_end, TRUE, p_working_days, p_slot_duration);
+        
+        current_start := current_end;
+    END LOOP;
+        
+    --formating wroking hours to jsonb so, it can be stored in doctors
+    working_hours_json := jsonb_build_object(
+        'start', p_start_time::TEXT,
+        'end', p_end_time::TEXT
+    );
+        
+    -- updating doctor's working details
+    UPDATE doctors 
+    SET available_days = p_working_days,
+        slot_duration = p_slot_duration,
+        working_hours = working_hours_json
+    WHERE doctor_id = p_doctor_id;
+EXCEPTION
+    WHEN OTHERS THEN
+        RAISE NOTICE 'An error occurred: %', SQLERRM;
+END;
+$$;
+
+
+ALTER FUNCTION public.makeslots(p_doctor_id integer, p_working_days jsonb, p_slot_duration interval, p_start_time time without time zone, p_end_time time without time zone) OWNER TO postgres;
+
+--
 -- Name: reschedule_appointment(integer, integer, integer, integer, date, date); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
@@ -572,7 +780,7 @@ ALTER FUNCTION public.reschedule_appointment(p_old_slot_id integer, p_new_slot_i
 -- Name: updatebilling(character varying, character varying, character varying, character varying); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
-CREATE FUNCTION public.updatebilling(p_paymentkey character varying, p_order_id character varying, p_newstatus character varying, p_payment_method character varying DEFAULT 'online payment'::character varying) RETURNS character varying[]
+CREATE FUNCTION public.updatebilling(p_paymentkey character varying, p_order_id character varying, p_newstatus character varying, p_payment_method character varying DEFAULT 'online payment'::character varying) RETURNS boolean
     LANGUAGE plpgsql
     AS $$
 DECLARE 
@@ -592,8 +800,8 @@ BEGIN
           AND payment_status = 'pending'
     ) INTO billingFound;
     
-    -- If a matching billing is found
-    IF billingFound THEN
+    -- If a matching billing is found and the it will be paid
+    IF billingFound AND p_newstatus = 'paid' THEN
         -- Retrieve doctor_id, patient_id, and appointment_date
         SELECT doctor_id, patient_id, appointment_date
         INTO doctorID, patientID, appointmentDate
@@ -612,7 +820,7 @@ BEGIN
         -- Update the billing to mark it as 'paid'
         UPDATE billings 
         SET payment_status = 'paid',
-            payment_method = p_payment_method,
+            payment_method = p_payment_method::payment_method_enum,
             payment_date = NOW()
         WHERE order_id = p_order_id 
           AND paymentKey = p_paymentKey;
@@ -644,20 +852,46 @@ BEGIN
           AND doctor_id = doctorID
           AND appointment_date = appointmentDate
           AND slot_id = slotID;
+          
+        RETURN TRUE;
     END IF;
     
-    -- Return empty array if no orders were deleted
-    IF deletedOrderIds IS NULL THEN 
-        RETURN '{}';
+    -- If the billing is found and it will fail
+    IF billingFound AND p_newstatus = 'failed' THEN
+        -- Retrieve doctor_id, patient_id, and appointment_date
+        SELECT doctor_id, patient_id, appointment_date
+        INTO doctorID, patientID, appointmentDate
+        FROM billings
+        WHERE order_id = p_order_id 
+          AND paymentKey = p_paymentKey;
+        
+        -- Retrieve slot_id from appointments
+        SELECT slot_id
+        INTO slotID
+        FROM appointments
+        WHERE doctor_id = doctorID
+          AND patient_id = patientID
+          AND appointment_date = appointmentDate;
+          
+        -- Update the billing to mark it as 'failed'
+        UPDATE billings 
+        SET payment_status = 'failed',
+            payment_method = p_payment_method::payment_method_enum,
+            payment_date = NOW()
+        WHERE order_id = p_order_id 
+          AND paymentKey = p_paymentKey;
+    
+    
+        RETURN TRUE;
     END IF;
+    
 
-    -- Return the array of deleted unpaid appointments
-    RETURN deletedOrderIds;
-
+    --if the billing isnt found
+    RETURN FALSE;
 EXCEPTION
     WHEN OTHERS THEN
         RAISE NOTICE 'An error occurred: %', SQLERRM;
-        RETURN '{}'; -- Return an empty array in case of an error
+        RETURN FALSE; -- Return an empty array in case of an error
 END;
 $$;
 
@@ -873,7 +1107,8 @@ CREATE TABLE public.patients (
     phone_number text,
     follow_up boolean,
     insurance_id text,
-    primary_doctor_id integer
+    primary_doctor_id integer,
+    balance numeric(10,2) DEFAULT '0'::numeric NOT NULL
 );
 
 
@@ -903,9 +1138,9 @@ CREATE TABLE public.time_slots (
     doctor_id integer NOT NULL,
     slot_start_time time without time zone NOT NULL,
     slot_end_time time without time zone NOT NULL,
-    slot_duration interval NOT NULL,
-    working_days public.weekdays[] NOT NULL,
-    is_available boolean NOT NULL
+    slot_duration interval,
+    is_available boolean DEFAULT true NOT NULL,
+    available_days jsonb NOT NULL
 );
 
 
