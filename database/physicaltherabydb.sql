@@ -20,7 +20,7 @@ SET row_security = off;
 -- Name: physicaltherapydb; Type: DATABASE; Schema: -; Owner: postgres
 --
 
-CREATE DATABASE physicaltherapydb WITH TEMPLATE = template0 ENCODING = 'UTF8' LOCALE = 'English_United States.1252';
+CREATE DATABASE physicaltherapydb WITH TEMPLATE = template0 ENCODING = 'UTF8' LOCALE_PROVIDER = libc LOCALE = 'English_United States.1252';
 
 
 ALTER DATABASE physicaltherapydb OWNER TO postgres;
@@ -39,19 +39,17 @@ SET client_min_messages = warning;
 SET row_security = off;
 
 --
--- Name: public; Type: SCHEMA; Schema: -; Owner: pg_database_owner
+-- Name: pgcrypto; Type: EXTENSION; Schema: -; Owner: -
 --
 
-CREATE SCHEMA public;
+CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA public;
 
-
-ALTER SCHEMA public OWNER TO pg_database_owner;
 
 --
--- Name: SCHEMA public; Type: COMMENT; Schema: -; Owner: pg_database_owner
+-- Name: EXTENSION pgcrypto; Type: COMMENT; Schema: -; Owner: 
 --
 
-COMMENT ON SCHEMA public IS 'standard public schema';
+COMMENT ON EXTENSION pgcrypto IS 'cryptographic functions';
 
 
 --
@@ -780,12 +778,12 @@ ALTER FUNCTION public.reschedule_appointment(p_old_slot_id integer, p_new_slot_i
 -- Name: updatebilling(character varying, character varying, character varying, character varying); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
-CREATE FUNCTION public.updatebilling(p_paymentkey character varying, p_order_id character varying, p_newstatus character varying, p_payment_method character varying DEFAULT 'online payment'::character varying) RETURNS boolean
+CREATE FUNCTION public.updatebilling(p_paymentkey character varying, p_order_id character varying, p_newstatus character varying, p_payment_method character varying DEFAULT 'online payment'::character varying) RETURNS character varying[]
     LANGUAGE plpgsql
     AS $$
 DECLARE 
     billingFound BOOLEAN;
-    deletedOrderIds VARCHAR[];
+    deletedOrderIds VARCHAR[] := '{}';
     doctorID INT;
     patientID INT;
     slotID INT;
@@ -853,7 +851,8 @@ BEGIN
           AND appointment_date = appointmentDate
           AND slot_id = slotID;
           
-        RETURN TRUE;
+        -- Return the deleted order IDs (empty if none were deleted)
+        RETURN deletedOrderIds;
     END IF;
     
     -- If the billing is found and it will fail
@@ -882,16 +881,17 @@ BEGIN
           AND paymentKey = p_paymentKey;
     
     
-        RETURN TRUE;
+        -- Returning an empty array
+        RETURN deletedOrderIds;
     END IF;
     
 
     --if the billing isnt found
-    RETURN FALSE;
+    RETURN deletedOrderIds;
 EXCEPTION
     WHEN OTHERS THEN
         RAISE NOTICE 'An error occurred: %', SQLERRM;
-        RETURN FALSE; -- Return an empty array in case of an error
+       RETURN deletedOrderIds; -- Return an empty array in case of an error
 END;
 $$;
 
