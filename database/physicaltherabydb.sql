@@ -406,7 +406,7 @@ BEGIN
     INTO v_slot_start_time, v_slot_end_time
     FROM time_slots
     WHERE time_slot_id = p_slot_id;
-
+    
     
     -- If the appointment exists, update the appointment to be canceled
     UPDATE appointments
@@ -430,7 +430,21 @@ BEGIN
           AND a.appointment_date = p_appointment_date
           AND a.doctor_id = p_doctor_id
           AND a.patient_id = p_patient_id
-          AND a.paid = FALSE;
+          AND a.paid = TRUE;
+          
+    -- increasing patient's balance for paid appointment
+    UPDATE patients p
+    SET balance = p.balance + b.price
+    FROM billings b
+    JOIN appointments a 
+        ON a.appointment_date = b.appointment_date
+        AND a.doctor_id = b.doctor_id 
+        AND a.patient_id = b.patient_id
+    WHERE a.slot_id = p_slot_id
+      AND a.appointment_date = p_appointment_date
+      AND a.doctor_id = p_doctor_id
+      AND a.patient_id = p_patient_id
+      AND a.paid = TRUE;
     
     -- Log the cancellation in booking_history
     INSERT INTO booking_history (
@@ -677,7 +691,7 @@ ALTER FUNCTION public.makeslots(p_doctor_id integer, p_working_days jsonb, p_slo
 -- Name: reschedule_appointment(integer, integer, integer, integer, date, date); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
-CREATE FUNCTION public.reschedule_appointment(p_old_slot_id integer, p_new_slot_id integer, p_doctor_id integer, p_patient_id integer, p_old_date date, p_new_date date) RETURNS text
+CREATE FUNCTION public.reschedule_appointment(p_old_slot_id integer, p_new_slot_id integer, p_doctor_id integer, p_patient_id integer, p_old_date date, p_new_date date) RETURNS boolean
     LANGUAGE plpgsql
     AS $$
 DECLARE
@@ -687,7 +701,7 @@ DECLARE
     v_new_slot_start_time TIME;
     v_new_slot_end_time TIME;
 BEGIN
-    -- Check if the old appointment exists and is scheduled, with row-level locking
+    -- Check if the old appointment exists and is scheduled
     IF NOT EXISTS (
         SELECT 1 
         FROM appointments AS a
@@ -696,9 +710,8 @@ BEGIN
           AND a.appointment_date = p_old_date
           AND a.slot_id = p_old_slot_id
           AND a.status = 'scheduled'
-        FOR UPDATE
     ) THEN
-        RETURN 'Appointment not found or already rescheduled/canceled.';
+        RETURN FALSE;
     END IF;
      
     -- Check if the new time slot is available on the new date
@@ -711,9 +724,9 @@ BEGIN
           AND a.status = 'scheduled'
     ) INTO v_slot_available;
     
-    -- If the new slot is not available, return an error message
+    -- If the new slot is not available, return FALSE
     IF NOT v_slot_available THEN
-        RETURN 'The new time slot is already booked.';
+        RETURN FALSE;
     END IF;
 
     -- Getting the start and end times for the old and new slots
@@ -762,12 +775,14 @@ BEGIN
         CURRENT_TIMESTAMP
     );
     
-    RETURN 'Appointment successfully rescheduled.';
+    -- If the rescheduling is successful, return TRUE
+    RETURN TRUE;
     
 EXCEPTION
     WHEN OTHERS THEN
+        -- In case of error, log the exception and return FALSE
         RAISE NOTICE 'An error occurred: %', SQLERRM;
-        RETURN 'An error occurred while rescheduling the appointment.';
+        RETURN FALSE;
 END;
 $$;
 
